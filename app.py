@@ -15,7 +15,7 @@ try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     # Seleccionamos un modelo robusto y disponible globalmente como 'gemini-pro'.
     # El error 404 comúnmente ocurre por usar modelos no disponibles en una región.
-    model = genai.GenerativeModel('models/gemini-2.5-pro')
+    model = genai.GenerativeModel('models/gemini-2.5-flash')
 except Exception as e:
     st.error("⚠️ Error de configuración: No se pudo inicializar la IA. Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
     st.exception(e) # Mostramos el error real para facilitar el debug
