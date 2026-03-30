@@ -134,7 +134,7 @@ if st.button("ANALIZAR Y GENERAR ESTRATEGIA BNA+ PROFUNDA"):
         try:
             # 3. Llamada a la API de Gemini
             response = client.models.generate_content(
-                model='gemini-2.0-flash', # Usamos el modelo más nuevo y rápido
+                model='gemini-1.5-flash', # Usamos el modelo más nuevo y rápido
                 contents=prompt_maestro
             )
             
