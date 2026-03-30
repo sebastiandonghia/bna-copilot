@@ -14,7 +14,7 @@ try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     # Seleccionamos un modelo robusto y disponible globalmente como 'gemini-pro'.
     # El error 404 comúnmente ocurre por usar modelos no disponibles en una región.
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('models/text-bison-001')
 except Exception as e:
     st.error("⚠️ Error de configuración: No se pudo inicializar la IA. Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
     st.exception(e) # Mostramos el error real para facilitar el debug
@@ -60,6 +60,103 @@ with col_g2:
         for i in range(n_gastos):
             c1, c2, c3 = st.columns([2, 1, 1])
             with c1: desc = st.text_input(f"Descripción {i+1}", f"Gasto {i+1}", key=f"g_d_{i}")
+            with c2: monto = st.number_input(f"Monto {i+1} ($)", value=250000, key=f"g_m_{i}")
+            with c3: fecha = st.date_input(f"Vencimiento {i+1}", datetime.date.today() + datetime.timedelta(days=15), key=f"g_f_{i}")
+            gastos.append({"desc": desc, "monto": monto, "fecha": str(fecha)})
+
+st.markdown("<div class='card'><h3>📈 Inversiones Actuales</h3></div>", unsafe_allow_html=True)
+tiene_pf = st.checkbox("Tengo Plazos Fijos activos")
+pfs = []
+if tiene_pf:
+    n_pfs = st.number_input("Cantidad de PFs", min_value=1, value=1)
+    for i in range(n_pfs):
+        c1, c2, c3 = st.columns(3)
+        with c1: monto = st.number_input(f"Monto PF {i+1}", value=1000000, key=f"pf_m_{i}")
+        with c2: vto = st.date_input(f"Vencimiento {i+1}", datetime.date.today() + datetime.timedelta(days=10), key=f"pf_v_{i}")
+        with c3: tipo = st.selectbox(f"Tipo {i+1}", ["Tradicional", "UVA"], key=f"pf_t_{i}")
+        pfs.append({"monto": monto, "vto": str(vto), "tipo": tipo})
+
+col_meta, col_pref = st.columns(2)
+with col_meta:
+    meta_nombre = st.text_input("Tu objetivo", "Cambiar el auto 🚗")
+    meta_monto = st.number_input("Monto de la meta ($)", value=10000000)
+with col_pref:
+    mep = st.checkbox("Me interesa operar Dólar MEP")
+    saldo_hoy = st.number_input("Saldo hoy en caja de ahorro ($)", value=1500000)
+
+# --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
+if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
+    
+    user_data = {
+        "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
+        "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
+    }
+
+    with st.spinner("🤖 Analizando mercado (BCRA, BYMA, BNA, Tablero Financiero)..."):
+        
+        prompt = f"""
+        Como Asesor Senior del BNA, genera una estrategia para este cliente: {json.dumps(user_data)}
+        Usa datos reales de Argentina (TNA BNA, Inflación REM, Dólar MEP).
+        Responde SOLO un JSON con estas llaves:
+        "analisis_macro": texto sobre tasas y MEP.
+        "cartera_sugerida": [{{instrumento, monto, tipo_activo, tna_estimada}}]
+        "evolucion_cartera": [{{mes, monto_pesos, inflacion_acum_estimada}}] (6 meses)
+        "calce_vencimientos": [{{fecha_vto, instrumento_vto, monto_vto, gasto_cubierto}}]
+        "justificacion": resumen del porqué.
+        """
+
+        try:
+            # LLAMADA CORRECTA A LA API
+            response = model.generate_content(prompt)
+            
+            # Limpieza robusta del JSON de la respuesta
+            raw_text = response.text
+            # Buscamos el primer '{' y el último '}' para asegurarnos que es un JSON válido
+            start = raw_text.find('{')
+            end = raw_text.rfind('}') + 1
+            clean_json = raw_text[start:end]
+            data = json.loads(clean_json)
+
+            st.success("✅ Estrategia calculada con éxito")
+            st.balloons()
+
+            # --- RENDERIZADO DE RESULTADOS ---
+            st.markdown(f"<div class='card'><b>Resumen de Mercado:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
+
+            df_cartera = pd.DataFrame(data['cartera_sugerida'])
+            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución por Tipo de Activo',
+                         color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
+            st.plotly_chart(fig1, use_container_width=True)
+
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.subheader("📈 Proyección a 6 meses")
+                df_evol = pd.DataFrame(data['evolucion_cartera'])
+                fig2 = go.Figure()
+                fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=3)))
+                st.plotly_chart(fig2, use_container_width=True)
+
+            with col_right:
+                st.subheader("📅 Cronograma de Liquidez")
+                df_calce = pd.DataFrame(data['calce_vencimientos'])
+                fig3 = px.bar(df_calce, x='fecha_vto', y='monto_vto', color='instrumento_vto', 
+                             title='Vencimientos vs Gastos', color_discrete_sequence=['#4da3ff', '#0074c7'])
+                st.plotly_chart(fig3, use_container_width=True)
+
+            st.table(df_cartera)
+            st.info(f"💡 **Justificación:** {data['justificacion']}")
+
+        except json.JSONDecodeError:
+            st.error("Error de formato: La IA no devolvió un JSON válido.")
+            st.code(raw_text) # Mostramos la respuesta cruda para debug
+        except Exception as e:
+            if "429" in str(e):
+                st.error("⏳ Límite de cuota alcanzado. Esperá 15 segundos y reintentá.")
+            else:
+                st.error(f"Ocurrió un error inesperado al comunicarse con la IA.")
+                st.exception(e)
+
             with c2: monto = st.number_input(f"Monto {i+1} ($)", value=250000, key=f"g_m_{i}")
             with c3: fecha = st.date_input(f"Vencimiento {i+1}", datetime.date.today() + datetime.timedelta(days=15), key=f"g_f_{i}")
             gastos.append({"desc": desc, "monto": monto, "fecha": str(fecha)})
