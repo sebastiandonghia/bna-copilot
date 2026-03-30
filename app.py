@@ -1,22 +1,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-import google.generativeai as genai
+from google import genai  # Librería nueva
 import json
 import datetime
+
 
 # --- CONFIGURACIÓN DE IA Y SEGURIDAD ---
 # Para que esto funcione en Streamlit Cloud, debés configurar la API KEY en 'Secrets'
 # Verás cómo hacerlo en las instrucciones de texto después del código.
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    # La nueva forma de conectar
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
-    st.error("⚠️ Falta configurar la GOOGLE_API_KEY en los Secrets de Streamlit Cloud.")
-    st.stop() # Detiene la ejecución si no hay API KEY
-
+    st.error("⚠️ Error en la API KEY. Verificá los Secrets.")
+    st.stop()
+    
 # --- CONFIGURACIÓN DE MARCA BNA+ PROFUNDO ---
 st.set_page_config(page_title="BNA+ Copilot Profundo", page_icon="🏦", layout="wide")
 
@@ -134,14 +133,17 @@ if st.button("ANALIZAR Y GENERAR ESTRATEGIA BNA+ PROFUNDA"):
         
         try:
             # 3. Llamada a la API de Gemini
-            response = model.generate_content(prompt_maestro)
+            response = client.models.generate_content(
+                model='gemini-2.0-flash', # Usamos el modelo más nuevo y rápido
+                contents=prompt_maestro
+            )
             
-            # Limpieza para asegurar que solo leemos el JSON (a veces Gemini agrega markdown ```json)
-            start = response.text.find('{')
-            end = response.text.rfind('}') + 1
-            data = json.loads(response.text[start:end])
+            # Limpieza del JSON
+            texto = response.text
+            json_str = texto.replace("```json", "").replace("```", "").strip()
+            data = json.loads(json_str)
             
-            st.success("✅ Análisis Completado Profundo")
+            st.success("✅ Estrategia Generada")
             st.balloons()
             
             # --- VISUALIZACIÓN PROFESIONAL ---
@@ -182,5 +184,5 @@ if st.button("ANALIZAR Y GENERAR ESTRATEGIA BNA+ PROFUNDA"):
             st.markdown(f"<div class='card'><b>Justificación del Asesor Senior:</b><br>{data.get('justificacion', 'Consultando...')}</div>", unsafe_allow_html=True)
 
         except Exception as e:
-            st.error("Hubo un error al procesar la respuesta de Gemini. Verifique los Secrets.")
+            st.error(f"Hubo un problema técnico: {e}")
             # st.code(response.text) # Descomentar para debug
