@@ -1,22 +1,20 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from google import genai  # Librería nueva
+import plotly.graph_objects as go  # CORRECCIÓN: Faltaba esta importación
+from google import genai 
 import json
 import datetime
 
-
-# --- CONFIGURACIÓN DE IA Y SEGURIDAD ---
-# Para que esto funcione en Streamlit Cloud, debés configurar la API KEY en 'Secrets'
-# Verás cómo hacerlo en las instrucciones de texto después del código.
+# --- CONFIGURACIÓN DE IA ---
 try:
-    # La nueva forma de conectar
+    # La nueva forma de conectar usa google-genai
     client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
-    st.error("⚠️ Error en la API KEY. Verificá los Secrets.")
+    st.error("⚠️ Error en la API KEY. Verificá los Secrets en Streamlit.")
     st.stop()
     
-# --- CONFIGURACIÓN DE MARCA BNA+ PROFUNDO ---
+# --- CONFIGURACIÓN DE MARCA BNA+ ---
 st.set_page_config(page_title="BNA+ Copilot Profundo", page_icon="🏦", layout="wide")
 
 st.markdown("""
@@ -31,13 +29,12 @@ st.markdown("""
 
 st.markdown("<div class='main-header'><h1>🏦 BNA+ Inversiones | Copilot Profundo</h1></div>", unsafe_allow_html=True)
 
-# --- INICIO DEL CUESTIONARIO AVANZADO ---
+# --- CUESTIONARIO ---
 st.subheader("📋 Perfil Financiero Detallado")
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
     st.markdown("<div class='card'><h3>💰 Ingresos y Depósitos</h3></div>", unsafe_allow_html=True)
-    
     with st.expander("Sueldos del Mes", expanded=True):
         n_sueldos = st.number_input("¿Cuántos sueldos recibís?", min_value=1, value=1)
         sueldos = []
@@ -46,143 +43,90 @@ with col_g1:
             with c1: monto = st.number_input(f"Monto Sueldo {i+1} ($)", value=850000, key=f"s_m_{i}")
             with c2: fecha = st.date_input(f"Fecha cobro {i+1}", datetime.date.today(), key=f"s_f_{i}")
             sueldos.append({"monto": monto, "fecha": fecha.strftime("%Y-%m-%d")})
-            
-    extra = st.number_input("Depósitos adicionales a analizar ($)", value=300000)
+    extra = st.number_input("Depósitos adicionales ($)", value=300000)
 
 with col_g2:
     st.markdown("<div class='card'><h3>🏠 Gastos Progresivos</h3></div>", unsafe_allow_html=True)
-    
     with st.expander("Detalle de Gastos Fijos", expanded=True):
-        n_gastos = st.number_input("¿Cuántos gastos fijos tenés?", min_value=1, value=2)
+        n_gastos = st.number_input("¿Cuántos gastos?", min_value=1, value=2)
         gastos = []
         for i in range(n_gastos):
             c1, c2, c3 = st.columns([2, 1, 1])
-            with c1: desc = st.text_input(f"Gasto {i+1} (Alquiler, etc.)", f"Gasto {i+1}", key=f"g_d_{i}")
-            with c2: monto = st.number_input(f"Monto {i+1} ($)", value=200000, key=f"g_m_{i}")
+            with c1: desc = st.text_input(f"Gasto {i+1}", f"Servicio {i+1}", key=f"g_d_{i}")
+            with c2: monto = st.number_input(f"Monto {i+1}", value=200000, key=f"g_m_{i}")
             with c3: fecha = st.date_input(f"Vto. {i+1}", datetime.date.today() + datetime.timedelta(days=10), key=f"g_f_{i}")
             gastos.append({"desc": desc, "monto": monto, "fecha": fecha.strftime("%Y-%m-%d")})
 
-with st.container():
-    st.markdown("<div class='card'><h3>📈 Tenencias Actuales</h3></div>", unsafe_allow_html=True)
-    tiene_pf = st.checkbox("¿Tengo Plazos Fijos actualmente?")
-    pfs = []
-    if tiene_pf:
-        n_pfs = st.number_input("¿Cuántos PF tenés?", min_value=1, value=1)
-        for i in range(n_pfs):
-            c1, c2, c3 = st.columns(3)
-            with c1: monto = st.number_input(f"Monto PF {i+1} ($)", value=600000, key=f"pf_m_{i}")
-            with c2: vto = st.date_input(f"Fecha Vto. {i+1}", datetime.date.today() + datetime.timedelta(days=20), key=f"pf_v_{i}")
-            with c3: tipo = st.selectbox(f"Tipo PF {i+1}", ["Tradicional", "UVA"], key=f"pf_t_{i}")
-            pfs.append({"monto": monto, "fecha": vto.strftime("%Y-%m-%d"), "tipo": tipo})
+tiene_pf = st.checkbox("¿Tengo Plazos Fijos actualmente?")
+pfs = []
+if tiene_pf:
+    n_pfs = st.number_input("¿Cuántos PF?", min_value=1, value=1)
+    for i in range(n_pfs):
+        c1, c2, c3 = st.columns(3)
+        with c1: monto = st.number_input(f"Monto PF {i+1}", value=600000, key=f"pf_m_{i}")
+        with c2: vto = st.date_input(f"Vto. {i+1}", datetime.date.today() + datetime.timedelta(days=20), key=f"pf_v_{i}")
+        with c3: tipo = st.selectbox(f"Tipo {i+1}", ["Tradicional", "UVA"], key=f"pf_t_{i}")
+        pfs.append({"monto": monto, "fecha": vto.strftime("%Y-%m-%d"), "tipo": tipo})
 
 col_meta, col_extra = st.columns(2)
 with col_meta:
-    st.markdown("<div class='card'><h3>🎯 Tu Meta</h3></div>", unsafe_allow_html=True)
-    meta_nombre = st.text_input("Objetivo de ahorro", "Compra Auto 🚗")
-    meta_monto = st.number_input("Monto total de la meta ($)", value=7500000)
-    
+    meta_nombre = st.text_input("Objetivo", "Cambiar Auto 🚗")
+    meta_monto = st.number_input("Meta ($)", value=7500000)
 with col_extra:
-    st.markdown("<div class='card'><h3>⚙️ Preferencias</h3></div>", unsafe_allow_html=True)
     mep = st.checkbox("¿Interés en Dólar MEP?")
-    saldo_inicial = st.number_input("Saldo disponible hoy en cuenta ($)", value=1200000)
+    saldo_inicial = st.number_input("Saldo hoy ($)", value=1200000)
 
-# --- BOTÓN DE ACCIÓN ---
+# --- LÓGICA IA ---
 if st.button("ANALIZAR Y GENERAR ESTRATEGIA BNA+ PROFUNDA"):
-    
-    # 1. Empaquetado de Datos para Gemini
     datos_completos = {
-        "saldo_hoy": saldo_inicial,
-        "sueldos": sueldos,
-        "depositos_extra": extra,
-        "gastos": gastos,
-        "plazos_fijos_actuales": pfs,
-        "meta": {"nombre": meta_nombre, "monto": meta_monto},
-        "interes_mep": mep
+        "saldo_hoy": saldo_inicial, "sueldos": sueldos, "depositos_extra": extra,
+        "gastos": gastos, "pfs": pfs, "meta": {"nombre": meta_nombre, "monto": meta_monto}, "mep": mep
     }
     
-    with st.spinner("🤖 Gemini está consultando BCRA, CNV, BNA, BYMA, Tablero Financiero y Reuters..."):
-        
-        # 2. PROMPT MAESTRO ACTUALIZADO (Con Grounding en fuentes reales)
+    with st.spinner("🤖 Consultando BCRA, BYMA y Tablero Financiero..."):
         prompt_maestro = f"""
-        # ROLE: BNA+ SENIOR WEALTH MANAGER (AGENTIC ENGINE)
-        Eres el motor de IA del Banco Nación de Argentina. Tu misión es transformar datos financieros complejos en una estrategia de inversión profesional.
-
-        # FUENTES OBLIGATORIAS (CONSULTA EN TIEMPO REAL):
-        1. Consulta obligatoriamente las Tasas de Política Monetaria del BCRA y las TNAs de Plazo Fijo vigentes en el BNA.
-        2. Consulta normativas de la CNV sobre Parking y límites operativos para Dólar MEP/CCL.
-        3. Consulta cotizaciones de Bonos Soberanos (AL30/GD30) en BYMA para calcular el tipo de cambio implícito (Dólar MEP).
-        4. Consulta la inflación proyectada (REM del BCRA) y datos de Tablero Financiero para instrumentos indexados (CER/UVA).
-
-        # DATOS DEL CLIENTE (JSON):
-        {json.dumps(datos_completos)}
-
-        # LÓGICA DE NEGOCIO (ESTRICTA):
-        - PRIORIDAD 1: Calce de Liquidez. Usa instrumentos T+0/T+1 (FCI Money Market BNA) para cubrir los gastos fijos del cliente según sus fechas de vencimiento.
-        - PRIORIDAD 2: Optimización de Tenencias Actuales. Si tiene PFs Tradicionales, evalúa si la TNA del BNA le gana a la inflación proyectada.
-        - PRIORIDAD 3: Ahorro por Objetivos. Calcula cuánto debe invertir mensualmente para llegar a la meta. Sugiere instrumentos CER si la meta es en pesos, o MEP si es dolarizable.
-        - PRIORIDAD 4: Maximización de Tasa Real Positive (TRP). Compara TEM de Lecaps vs Inflación Proyectada.
-
-        # FORMATO DE SALIDA (UNICAMENTE JSON ESTRICTO, SIN TEXTO ADICIONAL):
-        Debes responder EXCLUSIVAMENTE con un objeto JSON válido que contenga estas llaves:
-        - "analisis_macro": (String) Resumen de tasas actuales, inflación y dólar MEP encontrados.
-        - "cartera_sugerida": (Lista de objetos: {{"instrumento": "", "monto": 0, "tipo_activo": "Pesos/USD/Indexado", "tna_estimada": "XX%"}})
-        - "evolucion_cartera": (Lista de objetos: {{"mes": "Ene-26", "monto_pesos": 0, "inflacion_acum_estimada": "X%"}}) - Proyección a 6 meses.
-        - "calce_vencimientos": (Lista de objetos: {{"fecha_vto": "YYYY-MM-DD", "instrumento_vto": "", "monto_vto": 0, "gasto_cubierto": ""}})
-        - "justificacion": (String) Explicación profesional del mix.
+        Eres un Senior Wealth Manager del BNA. Analiza: {json.dumps(datos_completos)}
+        Considera tasas BCRA, Dólar MEP, e Inflación proyectada de Argentina.
+        Responde EXCLUSIVAMENTE en JSON con:
+        - "analisis_macro": texto corto.
+        - "cartera_sugerida": [{{instrumento, monto, tipo_activo, tna_estimada}}]
+        - "evolucion_cartera": [{{mes, monto_pesos, inflacion_acum_estimada}}] (6 meses)
+        - "calce_vencimientos": [{{fecha_vto, instrumento_vto, monto_vto, gasto_cubierto}}]
+        - "justificacion": texto.
         """
-        
         try:
-            # 3. Llamada a la API de Gemini
+            # CORRECCIÓN DEFINITIVA: Nombre de modelo simple para google-genai
             response = client.models.generate_content(
-                model='models/gemini-1.5-flash', # Usamos el modelo más nuevo y rápido
+                model='gemini-1.5-flash', 
                 contents=prompt_maestro
             )
             
-            # Limpieza del JSON
-            texto = response.text
-            json_str = texto.replace("```json", "").replace("```", "").strip()
-            data = json.loads(json_str)
+            res_text = response.text.replace("```json", "").replace("```", "").strip()
+            data = json.loads(res_text)
             
             st.success("✅ Estrategia Generada")
-            st.balloons()
+            st.markdown(f"<div class='card'>{data['analisis_macro']}</div>", unsafe_allow_html=True)
             
-            # --- VISUALIZACIÓN PROFESIONAL ---
-            st.markdown(f"<div class='card'><b>Contexto de Mercado Real:</b><br>{data.get('analisis_macro', 'Cargando...')}</div>", unsafe_allow_html=True)
-            
-            # Gráfico 1: Distribución de Cartera (Gráfico de Torta) - Estilo BNA+ (Azules)
-            st.subheader("📊 Gráfico 1: Distribución de Inversión por Tipo de Activo")
+            # Gráfico 1: Torta
             df_cartera = pd.DataFrame(data['cartera_sugerida'])
-            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Mix de Activos',
-                         color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
-            st.plotly_chart(fig1, use_container_width=True)
-            
-            st.table(df_cartera)
+            st.plotly_chart(px.pie(df_cartera, values='monto', names='tipo_activo', title='Mix de Activos', 
+                                 color_discrete_sequence=['#005691', '#0074c7', '#4da3ff']), use_container_width=True)
             
             col_a, col_b = st.columns(2)
-            
             with col_a:
-                # Gráfico 2: Evolución de Cartera (Gráfico de Líneas con Inflación)
-                st.subheader("📈 Gráfico 2: Evolución Estimada de Cartera vs Inflación")
-                df_evolucion = pd.DataFrame(data['evolucion_cartera'])
+                # Gráfico 2: Evolución (go.Figure ahora funcionará)
+                df_evol = pd.DataFrame(data['evolucion_cartera'])
                 fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(x=df_evolucion['mes'], y=df_evolucion['monto_pesos'], name='Cartera BNA+', line=dict(color='#005691', width=3)))
-                fig2.add_trace(go.Scatter(x=df_evolucion['mes'], y=df_evolucion['inflacion_acum_estimada'].str.replace('%','').astype(float), name='Inflación Acum.', line=dict(color='#E31B23', dash='dot')))
-                fig2.update_layout(title='Evolución Proyectada (6 meses)', xaxis_title='Mes', yaxis_title='Monto ($) / Tasa (%)')
+                fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Cartera', line=dict(color='#005691')))
                 st.plotly_chart(fig2, use_container_width=True)
                 
             with col_b:
-                # Gráfico 3: Calce de Vencimientos (Gráfico de Barras)
-                st.subheader("📅 Gráfico 3: Calce de Vencimientos vs Gastos Cubiertos")
+                # Gráfico 3: Calce
                 df_calce = pd.DataFrame(data['calce_vencimientos'])
-                df_calce['fecha_vto'] = pd.to_datetime(df_calce['fecha_vto'])
-                fig3 = px.bar(df_calce, x='fecha_vto', y='monto_vto', color='instrumento_vto', title='Cronograma de Disponibilidad',
-                             labels={'fecha_vto':'Fecha', 'monto_vto':'Monto ($)', 'instrumento_vto':'Instrumento'},
-                             color_discrete_sequence=['#4da3ff', '#0074c7', '#005691'])
-                st.plotly_chart(fig3, use_container_width=True)
-                st.table(df_calce)
-                
-            st.markdown(f"<div class='card'><b>Justificación del Asesor Senior:</b><br>{data.get('justificacion', 'Consultando...')}</div>", unsafe_allow_html=True)
+                st.plotly_chart(px.bar(df_calce, x='fecha_vto', y='monto_vto', color='instrumento_vto', title='Vencimientos'), use_container_width=True)
 
+            st.info(data['justificacion'])
+            st.balloons()
+            
         except Exception as e:
-            st.error(f"Hubo un problema técnico: {e}")
-            # st.code(response.text) # Descomentar para debug
+            st.error(f"Error técnico: {e}. Reintentá en 10 segundos (Cuota Free).")
