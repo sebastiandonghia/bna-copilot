@@ -6,6 +6,8 @@ import google.generativeai as genai
 import json
 import datetime
 
+st.write(f"google-generativeai version: {genai.__version__}")
+
 # --- 1. CONFIGURACIÓN DE IA (DRIVER CORREGIDO Y ESTABLE) ---
 try:
     # Usamos la SDK oficial google-generativeai
