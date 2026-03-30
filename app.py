@@ -289,4 +289,4 @@ if data:
             st.warning("La IA no devolvió 'calce_vencimientos' con campos esperados.")
 
     st.info(f"💡 **Justificación:** {data.get('justificacion','')}")
-``
+
