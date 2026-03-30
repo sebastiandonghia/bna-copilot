@@ -2,16 +2,20 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from google import genai
+import google.generativeai as genai
 import json
 import datetime
 
-# --- 1. CONFIGURACIÓN DE IA (DRIVER ACTUALIZADO 2026) ---
+# --- 1. CONFIGURACIÓN DE IA (DRIVER CORREGIDO Y ESTABLE) ---
 try:
-    # Usamos la nueva SDK google-genai
-    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
+    # Usamos la SDK oficial google-generativeai
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    # Seleccionamos un modelo robusto y disponible globalmente como 'gemini-pro'.
+    # El error 404 comúnmente ocurre por usar modelos no disponibles en una región.
+    model = genai.GenerativeModel('gemini-pro')
 except Exception as e:
-    st.error("⚠️ Error de configuración: Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
+    st.error("⚠️ Error de configuración: No se pudo inicializar la IA. Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
+    st.exception(e) # Mostramos el error real para facilitar el debug
     st.stop()
 
 # --- 2. ESTILO VISUAL BNA+ ---
@@ -22,13 +26,13 @@ st.markdown("""
     .stApp { background-color: #f4f7f9; }
     .main-header { background-color: #005691; padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px; }
     .stButton>button { background-color: #005691; color: white; border-radius: 10px; font-weight: bold; width: 100%; height: 3em; border: none; }
-    .stButton>button:hover { background-color: #004575; color: #white; }
+    .stButton>button:hover { background-color: #004575; color: white; }
     .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #005691; margin-bottom: 20px; }
     .stExpander { background-color: white; border-radius: 10px; border: 1px solid #005691; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<div class='main-header'><h1>🏦 BNA+ Inversiones | Copilot Profundo</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='main-header'><h1>🏦 BNA+ Inversiones | Copilot Profesional</h1></div>", unsafe_allow_html=True)
 
 # --- 3. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -70,7 +74,6 @@ if tiene_pf:
         with c3: tipo = st.selectbox(f"Tipo {i+1}", ["Tradicional", "UVA"], key=f"pf_t_{i}")
         pfs.append({"monto": monto, "vto": str(vto), "tipo": tipo})
 
-# Metas y Preferencias
 col_meta, col_pref = st.columns(2)
 with col_meta:
     meta_nombre = st.text_input("Tu objetivo", "Cambiar el auto 🚗")
@@ -82,7 +85,6 @@ with col_pref:
 # --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
 if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
     
-    # Preparación de datos para la IA
     user_data = {
         "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
         "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
@@ -102,12 +104,15 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
         """
 
         try:
-            # LLAMADA DEFINITIVA (Sin prefijo models/ para evitar el 404)
-            response = client.models.generate_content(model='gemini-1.5-flash', contents=prompt)
+            # LLAMADA CORRECTA A LA API
+            response = model.generate_content(prompt)
             
-            # Limpieza de JSON
+            # Limpieza robusta del JSON de la respuesta
             raw_text = response.text
-            clean_json = raw_text.replace("```json", "").replace("```", "").strip()
+            # Buscamos el primer '{' y el último '}' para asegurarnos que es un JSON válido
+            start = raw_text.find('{')
+            end = raw_text.rfind('}') + 1
+            clean_json = raw_text[start:end]
             data = json.loads(clean_json)
 
             st.success("✅ Estrategia calculada con éxito")
@@ -116,7 +121,6 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
             # --- RENDERIZADO DE RESULTADOS ---
             st.markdown(f"<div class='card'><b>Resumen de Mercado:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
 
-            # Gráfico 1: Torta (Distribución)
             df_cartera = pd.DataFrame(data['cartera_sugerida'])
             fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución por Tipo de Activo',
                          color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
@@ -125,7 +129,6 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
             col_left, col_right = st.columns(2)
 
             with col_left:
-                # Gráfico 2: Evolución vs Inflación
                 st.subheader("📈 Proyección a 6 meses")
                 df_evol = pd.DataFrame(data['evolucion_cartera'])
                 fig2 = go.Figure()
@@ -133,7 +136,6 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
                 st.plotly_chart(fig2, use_container_width=True)
 
             with col_right:
-                # Gráfico 3: Calce de Vencimientos
                 st.subheader("📅 Cronograma de Liquidez")
                 df_calce = pd.DataFrame(data['calce_vencimientos'])
                 fig3 = px.bar(df_calce, x='fecha_vto', y='monto_vto', color='instrumento_vto', 
@@ -143,8 +145,13 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
             st.table(df_cartera)
             st.info(f"💡 **Justificación:** {data['justificacion']}")
 
+        except json.JSONDecodeError:
+            st.error("Error de formato: La IA no devolvió un JSON válido.")
+            st.code(raw_text) # Mostramos la respuesta cruda para debug
         except Exception as e:
             if "429" in str(e):
                 st.error("⏳ Límite de cuota alcanzado. Esperá 15 segundos y reintentá.")
             else:
-                st.error(f"Error en la comunicación con la IA: {e}")
+                st.error(f"Ocurrió un error inesperado al comunicarse con la IA.")
+                st.exception(e)
+
