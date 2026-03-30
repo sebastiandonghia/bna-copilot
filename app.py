@@ -93,17 +93,38 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
         "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
     }
 
-    with st.spinner("🤖 Analizando mercado (BCRA, BYMA, BNA, Tablero Financiero)..."):
+    with st.spinner("🤖 Realizando análisis profundo del mercado y perfil financiero..."):
         
         prompt = f"""
-        Como Asesor Senior del BNA, genera una estrategia para este cliente: {json.dumps(user_data)}
-        Usa datos reales de Argentina (TNA BNA, Inflación REM, Dólar MEP).
-        Responde SOLO un JSON con estas llaves:
-        "analisis_macro": texto sobre tasas y MEP.
-        "cartera_sugerida": [{{instrumento, monto, tipo_activo, tna_estimada}}]
-        "evolucion_cartera": [{{mes, monto_pesos, inflacion_acum_estimada}}] (6 meses)
-        "calce_vencimientos": [{{fecha_vto, instrumento_vto, monto_vto, gasto_cubierto}}]
-        "justificacion": resumen del porqué.
+        Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
+
+        Analiza los datos de este cliente: {json.dumps(user_data)}
+
+        Usa datos macroeconómicos reales y actualizados de Argentina (TNA de Plazo Fijo BNA, Tasa de Política Monetaria BCRA, Inflación REM, valor de Dólar MEP, etc.).
+
+        Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido, sin texto antes ni después. La estructura del JSON debe ser la siguiente:
+        {{
+          "analisis_macro": "Un texto claro y educativo sobre el contexto económico actual de Argentina, explicando cómo afecta a las tasas de interés, la inflación y el dólar. Usa un lenguaje sencillo pero profesional.",
+          "horizonte_meta": "Basado en la meta del cliente y su capacidad de ahorro, calcula un horizonte de tiempo estimado (en meses o años) para alcanzar el objetivo. Explica el cálculo.",
+          "cartera_sugerida": [
+            {{
+              "instrumento": "Nombre del instrumento (ej. Plazo Fijo, FCI Money Market, Letra del Tesoro)",
+              "monto": "Monto a invertir en pesos",
+              "tipo_activo": "Categoría del activo (ej. Renta Fija, Renta Variable, Cobertura)",
+              "tna_estimada": "Tasa Nominal Anual estimada o rendimiento esperado",
+              "fundamento": "Explicación técnica y didáctica de por qué este instrumento es adecuado para el cliente en este momento. Detalla los riesgos y beneficios."
+            }}
+          ],
+          "estrategia_liquidez": "Un plan paso a paso y detallado para manejar la liquidez de corto plazo. Explica qué hacer con el dinero destinado a gastos próximos. Por ejemplo: 'Para cubrir el vencimiento de la tarjeta de $350.000 el día 20, invertir $345.000 en un Fondo Común de Inversión Money Market y rescatar el dinero 24hs antes, el día 19. El resto del dinero para gastos, colocarlo en cauciones a 1 día y renovarlas diariamente hasta la fecha de pago.'",
+          "evolucion_cartera": [
+            {{
+              "mes": "Mes (ej. 'Mes 1', 'Mes 2')",
+              "monto_pesos": "Monto total proyectado de la cartera en pesos",
+              "inflacion_acum_estimada": "Inflación acumulada estimada para ese mes"
+            }}
+          ],
+          "justificacion_general": "Un resumen final que conecte todas las partes de la estrategia, explicando cómo el plan de liquidez, la cartera de inversión y el horizonte de la meta trabajan juntos para cumplir los objetivos del cliente de manera segura y eficiente."
+        }}
         """
 
         try:
@@ -112,49 +133,54 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
             
             # Limpieza robusta del JSON de la respuesta
             raw_text = response.text
-            # Buscamos el primer '{' y el último '}' para asegurarnos que es un JSON válido
             start = raw_text.find('{')
             end = raw_text.rfind('}') + 1
             clean_json = raw_text[start:end]
             data = json.loads(clean_json)
 
-            st.success("✅ Estrategia calculada con éxito")
+            st.success("✅ Estrategia Profesional Generada")
             st.balloons()
 
-            # --- RENDERIZADO DE RESULTADOS ---
-            st.markdown(f"<div class='card'><b>Resumen de Mercado:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
+            # --- RENDERIZADO DE RESULTADOS MEJORADO ---
+            st.markdown(f"<div class='card'><b>Resumen de Mercado por Nuestro Equipo de Research:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
+            
+            col_horiz, col_liq = st.columns(2)
+            with col_horiz:
+                st.markdown(f"<div class='card'><h3> Horizonte para tu Meta: {meta_nombre}</h3><p>{data['horizonte_meta']}</p></div>", unsafe_allow_html=True)
+            with col_liq:
+                st.markdown(f"<div class='card'><h3> Plan de Liquidez (Corto Plazo)</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
 
+            st.subheader("📊 Cartera de Inversión Sugerida")
             df_cartera = pd.DataFrame(data['cartera_sugerida'])
-            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución por Tipo de Activo',
+            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución Propuesta por Tipo de Activo',
                          color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
             st.plotly_chart(fig1, use_container_width=True)
 
-            col_left, col_right = st.columns(2)
+            st.subheader("📋 Fundamentos de cada Instrumento")
+            for index, row in df_cartera.iterrows():
+                with st.expander(f"**{row['instrumento']}** - Monto: ${int(row['monto']):,}"):
+                    st.markdown(f"**Tipo de Activo:** {row['tipo_activo']}")
+                    st.markdown(f"**Rendimiento Anual Estimado:** {row['tna_estimada']}")
+                    st.markdown(f"---")
+                    st.markdown(f"**Fundamento Técnico de la Recomendación:**")
+                    st.info(row['fundamento'])
 
-            with col_left:
-                st.subheader("📈 Proyección a 6 meses")
-                df_evol = pd.DataFrame(data['evolucion_cartera'])
-                fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=3)))
-                st.plotly_chart(fig2, use_container_width=True)
-
-            with col_right:
-                st.subheader("📅 Cronograma de Liquidez")
-                df_calce = pd.DataFrame(data['calce_vencimientos'])
-                fig3 = px.bar(df_calce, x='fecha_vto', y='monto_vto', color='instrumento_vto', 
-                             title='Vencimientos vs Gastos', color_discrete_sequence=['#4da3ff', '#0074c7'])
-                st.plotly_chart(fig3, use_container_width=True)
-
-            st.table(df_cartera)
-            st.info(f"💡 **Justificación:** {data['justificacion']}")
+            st.subheader("📈 Proyección de tu Cartera vs. Inflación (6 Meses)")
+            df_evol = pd.DataFrame(data['evolucion_cartera'])
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4), fill='tozeroy'))
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación Acumulada Estimada', line=dict(color='#ff4b4b', width=2, dash='dot')))
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            st.markdown("---")
+            st.markdown(f"<div class='card'><h3>💡 Justificación General de la Estrategia</h3><p>{data['justificacion_general']}</p></div>", unsafe_allow_html=True)
 
         except json.JSONDecodeError:
-            st.error("Error de formato: La IA no devolvió un JSON válido.")
-            st.code(raw_text) # Mostramos la respuesta cruda para debug
+            st.error("Error de formato: La IA no devolvió un JSON válido. Esto puede ocurrir por un fallo temporal.")
+            st.code(raw_text)
         except Exception as e:
             if "429" in str(e):
-                st.error("⏳ Límite de cuota alcanzado. Esperá 15 segundos y reintentá.")
+                st.error("⏳ Límite de cuota alcanzado. Por favor, esperá un minuto antes de reintentar o considerá habilitar la facturación en tu proyecto de Google Cloud para obtener límites más altos.")
             else:
                 st.error(f"Ocurrió un error inesperado al comunicarse con la IA.")
                 st.exception(e)
-
