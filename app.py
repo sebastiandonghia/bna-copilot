@@ -12,7 +12,7 @@ import os # Import os to access environment variables
 
 # Configure the Generative AI model
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY")) # Use os.environ.get to avoid KeyError if not set
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-pro-latest')
 
 # --- API Endpoints ---
 ARGENTINADATOS_BASE_URL = "https://api.argentinadatos.com"
