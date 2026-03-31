@@ -44,6 +44,7 @@ def fetch_real_time_data():
             df_inflacion['fecha'] = pd.to_datetime(df_inflacion['fecha'])
             one_year_ago = datetime.date.today() - datetime.timedelta(days=365)
             df_inflacion = df_inflacion[df_inflacion['fecha'] >= pd.Timestamp(one_year_ago)]
+            df_inflacion['fecha'] = df_inflacion['fecha'].dt.strftime('%Y-%m-%d') # Convert Timestamp objects to string
             data['inflacion_mensual'] = df_inflacion.to_dict(orient='records')
         else:
             data['inflacion_mensual'] = []
