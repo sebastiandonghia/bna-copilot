@@ -7,41 +7,33 @@ import json
 import datetime
 import requests
 
-# --- 0. FUNCIONES DE CAPTURA DE DATOS REALES (Reforzada) ---
+# --- 0. FUNCIONES DE CAPTURA DE DATOS REALES (APIs Argentina) ---
 def get_market_data():
-    """Captura datos reales de APIs financieras de Argentina con Fallbacks técnicos"""
+    """Captura datos reales de APIs financieras de Argentina"""
     market_data = {
-        "mep": 1280.0, 
-        "bna_vendedor": 960.0,
-        "tna_pf_bna": 38.0,
-        "inflacion_rem": 3.4,
-        "letra_ejemplo": {"nombre": "S30A6", "tira": "52%"},
-        "fecha": datetime.date.today().strftime("%d/%m/%Y"),
-        "banda_inferior": 920.0,
-        "banda_superior": 1050.0
+        "mep": "No disponible",
+        "tna_pf_bna": "No disponible",
+        "inflacion_rem": "No disponible",
+        "fecha": datetime.date.today().strftime("%d/%m/%Y")
     }
     try:
-        # 1. Dólar MEP
-        res_mep = requests.get("https://dolarapi.com/v1/dolares/mep", timeout=3).json()
+        # 1. Dólar MEP (DolarApi)
+        res_mep = requests.get("https://dolarapi.com/v1/dolares/mep", timeout=5).json()
         market_data["mep"] = res_mep.get("venta")
 
-        # 2. Dólar Oficial BNA
-        res_bna = requests.get("https://dolarapi.com/v1/dolares/oficial", timeout=3).json()
-        market_data["bna_vendedor"] = res_bna.get("venta")
-
-        # 3. Tasas de Plazo Fijo (ArgentinaDatos)
-        res_pf = requests.get("https://api.argentinadatos.com/v1/finanzas/tasas/plazoFijo", timeout=3).json()
+        # 2. Tasas de Plazo Fijo (ArgentinaDatos)
+        res_pf = requests.get("https://api.argentinadatos.com/v1/finanzas/tasas/plazoFijo", timeout=5).json()
         bna_data = next((x for x in res_pf if "NACION" in x['entidad'].upper()), None)
         if bna_data:
             market_data["tna_pf_bna"] = bna_data['tna']
 
-        # 4. Inflación REM
-        res_inf = requests.get("https://api.argentinadatos.com/v1/finanzas/indices/inflacion", timeout=3).json()
+        # 3. Inflación (REM - ArgentinaDatos)
+        res_inf = requests.get("https://api.argentinadatos.com/v1/finanzas/indices/inflacion", timeout=5).json()
         if res_inf:
-            market_data["inflacion_rem"] = res_inf[-1]['valor']
+            market_data["inflacion_rem"] = res_inf[-1]['valor'] 
             
     except Exception as e:
-        st.warning(f"📡 Nota: Se usan estimaciones de mercado por latencia de API.")
+        st.warning(f"Nota: Algunos datos de mercado se estimarán (Error de API: {e})")
     
     return market_data
 
@@ -50,37 +42,19 @@ try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error("⚠️ Error de configuración de IA. Verificá los Secrets.")
+    st.error("⚠️ Error de configuración de IA.")
     st.stop()
 
-# --- 2. ESTILO VISUAL BNA+ (ACTUALIZADO SEGÚN LOGIN DIGITAL.BNA) ---
+# --- 2. ESTILO VISUAL BNA+ ---
 st.set_page_config(page_title="Copilot Profesional | + Inversiones", page_icon="🏦", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { background-color: #f8fafc; }
-    .main-header { 
-        background-color: #007dc5; 
-        padding: 25px; border-radius: 12px; color: white; text-align: center; margin-bottom: 25px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
-    }
-    .stButton>button { 
-        background-color: #e2e8f0; color: #64748b; border-radius: 12px; font-weight: bold; 
-        width: 100%; height: 3.5em; border: none; transition: all 0.3s ease;
-    }
-    .stButton>button:hover { 
-        background-color: #007dc5; color: white; box-shadow: 0 4px 12px rgba(0,125,197,0.2);
-    }
-    .live-ticker { 
-        background-color: #f1f5f9; padding: 12px; border-radius: 8px; text-align: center; 
-        font-weight: bold; color: #007dc5; margin-bottom: 25px; border: 1px solid #e2e8f0; 
-    }
-    .card { 
-        background-color: white; padding: 25px; border-radius: 16px; 
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 25px; border: 1px solid #e2e8f0; 
-    }
-    .card h3 { color: #007dc5; font-size: 1.3rem; margin-top: 0; }
-    .stExpander { background-color: white; border-radius: 12px; border: 1px solid #e2e8f0; }
+    .stApp { background-color: #f4f7f9; }
+    .main-header { background-color: #005691; padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px; }
+    .stButton>button { background-color: #005691; color: white; border-radius: 10px; font-weight: bold; width: 100%; height: 3em; border: none; }
+    .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #005691; margin-bottom: 20px; }
+    .live-ticker { background-color: #e1f5fe; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; color: #005691; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -89,13 +63,15 @@ st.markdown("<div class='main-header'><h1>🏦 + Inversiones | Copilot Profesion
 m_data = get_market_data()
 st.markdown(f"""
     <div class='live-ticker'>
-        📡 Terminal Research BNA ({m_data['fecha']}): 
-        💵 MEP: ${m_data['mep']} | 🏦 TNA BNA: {m_data['tna_pf_bna']}% | 📈 REM Inf: {m_data['inflacion_rem']}%
+        📡 Datos en vivo ({m_data['fecha']}): 
+        💵 Dólar MEP: ${m_data['mep']} | 
+        🏦 TNA BNA: {m_data['tna_pf_bna']}% | 
+        📈 Últ. Inflación: {m_data['inflacion_rem']}%
     </div>
 """, unsafe_allow_html=True)
 
 # --- 3. CUESTIONARIO FINANCIERO ---
-st.subheader("📋 Perfil Financiero del Cliente")
+st.subheader("📋 Perfil Financiero Detallado")
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
@@ -139,78 +115,91 @@ with col_meta:
     meta_nombre = st.text_input("Tu objetivo", "Cambiar el auto 🚗")
     meta_monto = st.number_input("Monto de la meta ($)", value=10000000)
 with col_pref:
-    mep_check = st.checkbox("Me interesa operar Dólar MEP")
+    mep_interes = st.checkbox("Me interesa operar Dólar MEP")
     saldo_hoy = st.number_input("Saldo hoy en caja de ahorro ($)", value=1500000)
 
 # --- 4. MOTOR DE ESTRATEGIA ---
 if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
     user_data = {
         "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
-        "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep_check
+        "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "interes_mep": mep_interes
     }
 
-    with st.spinner("🤖 Nuestro equipo de Research BNA está diseñando su estrategia fiduciaria..."):
+    with st.spinner("🤖 Realizando análisis profundo del mercado y perfil financiero fiduciario..."):
         prompt = f"""
-        # ROLE: ASESOR FINANCIERO FIDUCIARIO SENIOR - BANCO NACIÓN (BNA+)
-        Inversor NO CALIFICADO, adverso al riesgo alto. Tono didáctico y profesional.
+        Actúa como un Asesor Financiero Fiduciario Senior del BNA (Argentina). Eres extremadamente técnico, didáctico y priorizas la seguridad del cliente.
+        
+        CONTEXTO DE MERCADO REAL HOY:
+        - Dólar MEP: ${m_data['mep']}
+        - TNA Plazo Fijo BNA: {m_data['tna_pf_bna']}%
+        - Último Índice Inflación Mensual: {m_data['inflacion_rem']}%
 
-        Analiza estos datos: {json.dumps(user_data)}
+        Analiza los datos de este cliente: {json.dumps(user_data)}
 
-        # CONTEXTO DE MERCADO REAL:
-        - Dólar Oficial BNA: ${m_data['bna_vendedor']} | Dólar MEP: ${m_data['mep']}
-        - TNA Plazo Fijo BNA: {m_data['tna_pf_bna']}% | Plazo Fijo UVA: UVA + 1%
-        - Inflación REM BCRA: {m_data['inflacion_rem']}% | Letra ref: {m_data['letra_ejemplo']['nombre']} ({m_data['letra_ejemplo']['tira']})
+        REGLAS DE RECOMENDACIÓN:
+        1. Para Fondos Comunes, usa la familia 'Pellegrini' (ej. Pellegrini Money Market, Pellegrini Renta Fija).
+        2. Explica siempre plazos de Plazo Fijo (Tradicional 30 días vs UVA 180 días).
+        3. Compara instrumentos de tasa fija vs inflación (Lecaps vs Boncer).
 
-        # INSTRUCCIONES:
-        1. Sé explícito con plazos (ej. PF BNA a 30 días).
-        2. Usa nombres reales de FCIs PELLEGRINI (Money Market, Renta Pesos, etc).
-        3. Para Letras/Bonos, justifica la elección técnica.
-        4. Respuesta exclusiva en JSON.
-
-        Estructura:
+        Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido con esta estructura:
         {{
-          "analisis_macro": "Contexto educativo sobre tasas, inflación y brecha.",
-          "cartera_sugerida": [
-            {{ "instrumento": "Nombre exacto", "monto": valor, "tipo_activo": "Categoría", "tna_estimada": "valor", "fundamento": "Didáctico" }}
-          ],
+          "analisis_macro": "Análisis educativo sobre tasas, inflación y el contexto fiduciario.",
+          "horizonte_meta": "Cálculo estimado para alcanzar el objetivo.",
           "tabla_comparativa_letras": [
-            {{ "letra": "Nombre", "plazo_dias": n, "tira_estimada": "X%", "justificacion": "Por qué sí o por qué no" }}
+             {{ "letra": "Lecap (S31M5 o similar)", "tna": "valor", "ventaja": "texto corto", "riesgo": "texto corto" }},
+             {{ "letra": "Boncer (TZX25 o similar)", "tna": "UVA + X%", "ventaja": "texto corto", "riesgo": "texto corto" }}
           ],
-          "estrategia_liquidez": "Paso a paso usando FCIs Pellegrini.",
-          "evolucion_cartera": [{{ "mes": "Mes 1", "monto_pesos": v, "inflacion_acum_estimada": "X%" }}],
-          "justificacion_fiduciaria": "Resumen final de seguridad."
+          "cartera_sugerida": [
+            {{ "instrumento": "Nombre", "monto": valor, "tipo_activo": "Categoría", "tna_estimada": "valor", "fundamento": "Didáctico" }}
+          ],
+          "estrategia_liquidez": "Plan paso a paso con Pellegrini Money Market para los vencimientos detallados.",
+          "evolucion_cartera": [
+            {{ "mes": "Mes 1", "monto_pesos": valor, "inflacion_acum_estimada": valor }}
+          ],
+          "justificacion_general": "Resumen técnico final."
         }}
         """
 
         try:
             response = model.generate_content(prompt)
-            data = json.loads(response.text[response.text.find('{'):response.text.rfind('}') + 1])
+            raw_text = response.text
+            clean_json = raw_text[raw_text.find('{'):raw_text.rfind('}') + 1]
+            data = json.loads(clean_json)
 
-            st.success("✅ Estrategia Profesional BNA Generada")
+            st.success("✅ Estrategia Profesional Generada")
+            st.balloons()
 
-            st.markdown(f"<div class='card'><h3>Análisis de Research</h3><p>{data['analisis_macro']}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card'><b>Resumen de Research BNA:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
             
+            c_h, c_l = st.columns(2)
+            with c_h: st.markdown(f"<div class='card'><h3>🎯 Meta: {meta_nombre}</h3><p>{data['horizonte_meta']}</p></div>", unsafe_allow_html=True)
+            with c_l: st.markdown(f"<div class='card'><h3>💧 Liquidez y Gastos</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
+
+            # --- TABLA COMPARATIVA DE LETRAS (NUEVO) ---
+            st.subheader("📋 Comparativa Técnica de Letras (Analista Senior)")
+            df_letras = pd.DataFrame(data['tabla_comparativa_letras'])
+            st.table(df_letras)
+
             st.subheader("📊 Cartera de Inversión Sugerida")
             df_cartera = pd.DataFrame(data['cartera_sugerida'])
-            st.plotly_chart(px.pie(df_cartera, values='monto', names='instrumento', hole=.4, color_discrete_sequence=px.colors.qualitative.Safe), use_container_width=True)
+            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución Propuesta',
+                         color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
+            st.plotly_chart(fig1, use_container_width=True)
 
-            # Nueva Tabla Comparativa de Letras
-            st.markdown("<div class='card'><h3>📋 Comparativa de Letras del Tesoro (Lecaps/Boncer)</h3>", unsafe_allow_html=True)
-            st.table(pd.DataFrame(data['tabla_comparativa_letras']))
-            st.markdown("</div>", unsafe_allow_html=True)
+            for index, row in df_cartera.iterrows():
+                with st.expander(f"🔍 Fundamentos: {row['instrumento']} (${int(row['monto']):,})"):
+                    st.write(f"**Rendimiento Estimado:** {row['tna_estimada']}")
+                    st.info(row['fundamento'])
 
-            for item in data['cartera_sugerida']:
-                with st.expander(f"🔍 {item['instrumento']} - ${item['monto']:,}"):
-                    st.write(f"**Rendimiento:** {item['tna_estimada']}")
-                    st.info(item['fundamento'])
-
-            st.markdown(f"<div class='card'><h3>💧 Plan de Liquidez y Gastos</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
-            
-            st.subheader("📈 Proyección vs Inflación")
+            st.subheader("📈 Proyección de Cartera vs. Inflación")
             df_evol = pd.DataFrame(data['evolucion_cartera'])
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Cartera', line=dict(color='#007dc5', width=4)))
-            st.plotly_chart(fig, use_container_width=True)
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4), fill='tozeroy'))
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación Est.', line=dict(color='#ff4b4b', dash='dot')))
+            st.plotly_chart(fig2, use_container_width=True)
+            
+            st.markdown(f"<div class='card'><h3>💡 Conclusión Estratégica</h3><p>{data['justificacion_general']}</p></div>", unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"Error procesando la estrategia: {e}")
+            if 'raw_text' in locals(): st.code(raw_text)
