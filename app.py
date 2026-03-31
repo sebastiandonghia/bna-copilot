@@ -7,6 +7,12 @@ import time
 import shlex
 import datetime # Import datetime for date_input
 import requests # New import for API calls
+import google.generativeai as genai # Import the Google Generative AI library
+import os # Import os to access environment variables
+
+# Configure the Generative AI model
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY")) # Use os.environ.get to avoid KeyError if not set
+model = genai.GenerativeModel('gemini-pro')
 
 # --- API Endpoints ---
 ARGENTINADATOS_BASE_URL = "https://api.argentinadatos.com"
@@ -246,17 +252,10 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
             "datos_mercado_tiempo_real": real_time_data # Inject real-time data
         }
         
-        # --- LLAMADA A GEMINI CLI CON EL PROMPT INTEGRADO ---
-        prompt_completo = (
-            f"{PROMPT_MAESTRO_V2_CONTENT}\n"
-            f"Datos del cliente: {json.dumps(contexto_usuario)}"
-        )
-        comando = ["gemini", prompt_completo]
-        
-        st.write(f"Executing command: {shlex.join(comando)}")
-        
+        # --- LLAMADA A GEMINI CON EL PROMPT INTEGRADO ---
         try:
-            resultado_raw = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
+            response = model.generate_content(prompt_completo)
+            resultado_raw = response.text
             
             start = resultado_raw.find('{')
             end = resultado_raw.rfind('}') + 1
