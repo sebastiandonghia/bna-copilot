@@ -237,9 +237,13 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
         }
         
         # --- LLAMADA A GEMINI CLI CON EL PROMPT INTEGRADO ---
-        prompt_completo = f"{PROMPT_MAESTRO_V2_CONTENT}
-Datos del cliente: {json.dumps(contexto_usuario)}"
+        prompt_completo = (
+            f"{PROMPT_MAESTRO_V2_CONTENT}\n"
+            f"Datos del cliente: {json.dumps(contexto_usuario)}"
+        )
         comando = ["gemini", prompt_completo]
+        
+        st.write(f"Executing command: {shlex.join(comando)}")
         
         try:
             resultado_raw = subprocess.check_output(comando, text=True, stderr=subprocess.STDOUT)
