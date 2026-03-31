@@ -252,6 +252,11 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
             "datos_mercado_tiempo_real": real_time_data # Inject real-time data
         }
         
+        prompt_completo = (
+            f"{PROMPT_MAESTRO_V2_CONTENT}\n"
+            f"Datos del cliente: {json.dumps(contexto_usuario)}"
+        )
+        
         # --- LLAMADA A GEMINI CON EL PROMPT INTEGRADO ---
         try:
             response = model.generate_content(prompt_completo)
