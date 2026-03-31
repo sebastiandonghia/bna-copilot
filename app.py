@@ -8,6 +8,93 @@ import shlex
 import datetime # Import datetime for date_input
 import requests # New import for API calls
 
+# --- API Endpoints ---
+ARGENTINADATOS_BASE_URL = "https://api.argentinadatos.com/v1"
+DATA912_BASE_URL = "https://data912.com"
+
+def fetch_real_time_data():
+    """Fetches real-time financial data from various APIs."""
+    data = {}
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+
+    # ArgentinaDatos API
+    try:
+        # Plazo Fijo
+        pf_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/finanzas/tasas/plazo-fijo", timeout=5)
+        pf_response.raise_for_status()
+        data['plazo_fijo_rates'] = pf_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Plazo Fijo de ArgentinaDatos: {e}")
+
+    try:
+        # Inflacion
+        inflacion_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/finanzas/indices/inflacion", timeout=5)
+        inflacion_response.raise_for_status()
+        data['inflacion_mensual'] = inflacion_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Inflación de ArgentinaDatos: {e}")
+
+    try:
+        # UVA
+        uva_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/finanzas/indices/uva", timeout=5)
+        uva_response.raise_for_status()
+        data['uva_indices'] = uva_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos UVA de ArgentinaDatos: {e}")
+
+    try:
+        # FCI Money Market (using current date)
+        fci_mm_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/finanzas/fci/mercado-dinero/fecha/{today_str}", timeout=5)
+        fci_mm_response.raise_for_status()
+        data['fci_money_market'] = fci_mm_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de FCI Money Market de ArgentinaDatos: {e}")
+        
+    try:
+        # Letras (LECAP/BONCAP)
+        letras_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/finanzas/letras", timeout=5)
+        letras_response.raise_for_status()
+        data['letras'] = letras_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Letras de ArgentinaDatos: {e}")
+
+    try:
+        # Dólar general (then try to find MEP)
+        dolar_response = requests.get(f"{ARGENTINADATOS_BASE_URL}/cotizaciones/dolares/casa/mep", timeout=5)
+        dolar_response.raise_for_status()
+        data['dolar_mep_argentinadatos'] = dolar_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Dólar MEP de ArgentinaDatos: {e}")
+
+
+    # Data912 API
+    try:
+        # Dólar MEP (live from data912)
+        mep_data912_response = requests.get(f"{DATA912_BASE_URL}/live/mep", timeout=5)
+        mep_data912_response.raise_for_status()
+        data['dolar_mep_data912'] = mep_data912_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Dólar MEP de Data912: {e}")
+
+    try:
+        # Government Notes (LECAPs/BONCAPs)
+        gov_notes_response = requests.get(f"{DATA912_BASE_URL}/live/arg_notes", timeout=5)
+        gov_notes_response.raise_for_status()
+        data['government_notes'] = gov_notes_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Notas de Gobierno de Data912: {e}")
+
+    try:
+        # Government Bonds
+        gov_bonds_response = requests.get(f"{DATA912_BASE_URL}/live/arg_bonds", timeout=5)
+        gov_bonds_response.raise_for_status()
+        data['government_bonds'] = gov_bonds_response.json()
+    except requests.exceptions.RequestException as e:
+        st.warning(f"⚠️ No se pudieron obtener datos de Bonos de Gobierno de Data912: {e}")
+
+    return data
+
+
 # --- 1. CONFIGURACIÓN DE PÁGINA, ESTILO Y PROMPT ---
 st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layout="wide")
 
@@ -134,6 +221,9 @@ with col_pref:
 if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
     with st.spinner("Realizando análisis profundo del mercado y tu perfil..."):
         
+        # --- Fetch real-time data ---
+        real_time_data = fetch_real_time_data()
+
         contexto_usuario = {
             "saldo_caja_ahorro": saldo_hoy,
             "ingresos_mensuales": sueldos,
@@ -142,11 +232,13 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
             "plazos_fijos_activos": pfs,
             "meta_objetivo_nombre": meta_nombre,
             "meta_objetivo_monto": meta_monto,
-            "interes_dolar_mep": mep
+            "interes_dolar_mep": mep,
+            "datos_mercado_tiempo_real": real_time_data # Inject real-time data
         }
         
         # --- LLAMADA A GEMINI CLI CON EL PROMPT INTEGRADO ---
-        prompt_completo = f"{PROMPT_MAESTRO_V2_CONTENT}\nDatos del cliente: {json.dumps(contexto_usuario)}"
+        prompt_completo = f"{PROMPT_MAESTRO_V2_CONTENT}
+Datos del cliente: {json.dumps(contexto_usuario)}"
         comando = ["gemini", prompt_completo]
         
         try:
