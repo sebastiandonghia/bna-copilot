@@ -1,27 +1,11 @@
-
 import streamlit as st
+import subprocess
+import json
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-import google.generativeai as genai
-import json
-import datetime
+import time
 
-st.write(f"google-generativeai version: {genai.__version__}")
-
-# --- 1. CONFIGURACIÓN DE IA (DRIVER CORREGIDO Y ESTABLE) ---
-try:
-    # Usamos la SDK oficial google-generativeai
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Seleccionamos un modelo robusto y disponible globalmente como 'gemini-pro'.
-    # El error 404 comúnmente ocurre por usar modelos no disponibles en una región.
-    model = genai.GenerativeModel('models/gemini-2.5-flash')
-except Exception as e:
-    st.error("⚠️ Error de configuración: No se pudo inicializar la IA. Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
-    st.exception(e) # Mostramos el error real para facilitar el debug
-    st.stop()
-
-# --- 2. ESTILO VISUAL BNA+ ---
+# --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILO ---
 st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layout="wide")
 
 st.markdown("""
@@ -31,156 +15,118 @@ st.markdown("""
     .stButton>button { background-color: #005691; color: white; border-radius: 10px; font-weight: bold; width: 100%; height: 3em; border: none; }
     .stButton>button:hover { background-color: #004575; color: white; }
     .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-left: 5px solid #005691; margin-bottom: 20px; }
-    .stExpander { background-color: white; border-radius: 10px; border: 1px solid #005691; }
+    .stExpander { background-color: white; border-radius: 10px; border: 1px solid #e0e0e0; }
     </style>
     """, unsafe_allow_html=True)
 
 st.markdown("<div class='main-header'><h1>🏦 + Inversiones | Copilot Profesional</h1></div>", unsafe_allow_html=True)
+st.write("Gestioná tus ahorros con la inteligencia y la seguridad del Banco Nación.")
 
-# --- 3. CUESTIONARIO FINANCIERO ---
-st.subheader("📋 Perfil Financiero Detallado")
-col_g1, col_g2 = st.columns(2)
 
-with col_g1:
-    st.markdown("<div class='card'><h3>💰 Ingresos y Disponibilidad</h3></div>", unsafe_allow_html=True)
-    with st.expander("Sueldos y Cobros del Mes", expanded=True):
-        n_sueldos = st.number_input("¿Cuántos ingresos recibís al mes?", min_value=1, value=1)
-        sueldos = []
-        for i in range(n_sueldos):
-            c1, c2 = st.columns(2)
-            with c1: monto = st.number_input(f"Monto Sueldo {i+1} ($)", value=900000, key=f"s_m_{i}")
-            with c2: fecha = st.date_input(f"Fecha de cobro {i+1}", datetime.date.today(), key=f"s_f_{i}")
-            sueldos.append({"monto": monto, "fecha": str(fecha)})
-    extra = st.number_input("Ahorros/Depósitos adicionales ($)", value=500000)
+# --- 2. FORMULARIO DE ENTRADA ---
+st.subheader("📋 Perfil Financiero")
+with st.container():
+    col1, col2 = st.columns(2)
+    with col1:
+        saldo = st.number_input("Saldo actual en cuenta ($)", value=1500000, step=50000)
+        tarjeta = st.number_input("Próximo resumen de Tarjeta ($)", value=350000)
+    with col2:
+        gasto_fijo = st.number_input("Gastos fijos mensuales (aprox.) ($)", value=450000)
+        fecha_pago = st.slider("Día del mes para estos pagos", 1, 31, 10)
 
-with col_g2:
-    st.markdown("<div class='card'><h3>🏠 Gastos y Vencimientos</h3></div>", unsafe_allow_html=True)
-    with st.expander("Detalle de Egresos (Tarjeta, Alquiler, Servicios)", expanded=True):
-        n_gastos = st.number_input("¿Cuántos vencimientos tenés?", min_value=1, value=2)
-        gastos = []
-        for i in range(n_gastos):
-            c1, c2, c3 = st.columns([2, 1, 1])
-            with c1: desc = st.text_input(f"Descripción {i+1}", f"Gasto {i+1}", key=f"g_d_{i}")
-            with c2: monto = st.number_input(f"Monto {i+1} ($)", value=250000, key=f"g_m_{i}")
-            with c3: fecha = st.date_input(f"Vencimiento {i+1}", datetime.date.today() + datetime.timedelta(days=15), key=f"g_f_{i}")
-            gastos.append({"desc": desc, "monto": monto, "fecha": str(fecha)})
+    st.subheader("🎯 Tu Meta Principal")
+    col3, col4 = st.columns(2)
+    with col3:
+        meta_nombre = st.text_input("¿Cuál es tu objetivo?", "Cambiar el auto 🚗")
+        quiere_mep = st.selectbox("¿Te interesa operar Dólar MEP?", ["No", "Sí, como opción de ahorro"])
+    with col4:
+        meta_monto = st.number_input("Monto estimado de la meta ($)", value=10000000, step=100000)
 
-st.markdown("<div class='card'><h3>📈 Inversiones Actuales</h3></div>", unsafe_allow_html=True)
-tiene_pf = st.checkbox("Tengo Plazos Fijos activos")
-pfs = []
-if tiene_pf:
-    n_pfs = st.number_input("Cantidad de PFs", min_value=1, value=1)
-    for i in range(n_pfs):
-        c1, c2, c3 = st.columns(3)
-        with c1: monto = st.number_input(f"Monto PF {i+1}", value=1000000, key=f"pf_m_{i}")
-        with c2: vto = st.date_input(f"Vencimiento {i+1}", datetime.date.today() + datetime.timedelta(days=10), key=f"pf_v_{i}")
-        with c3: tipo = st.selectbox(f"Tipo {i+1}", ["Tradicional", "UVA"], key=f"pf_t_{i}")
-        pfs.append({"monto": monto, "vto": str(vto), "tipo": tipo})
 
-col_meta, col_pref = st.columns(2)
-with col_meta:
-    meta_nombre = st.text_input("Tu objetivo", "Cambiar el auto 🚗")
-    meta_monto = st.number_input("Monto de la meta ($)", value=10000000)
-with col_pref:
-    mep = st.checkbox("Me interesa operar Dólar MEP")
-    saldo_hoy = st.number_input("Saldo hoy en caja de ahorro ($)", value=1500000)
-
-# --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
-if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
-    
-    user_data = {
-        "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
-        "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
-    }
-
-    with st.spinner("🤖 Realizando análisis profundo del mercado y perfil financiero..."):
+# --- 3. MOTOR DE ESTRATEGIA ---
+if st.button("GENERAR ESTRATEGIA PROFESIONAL"):
+    with st.spinner("Realizando análisis profundo del mercado y tu perfil..."):
         
-        prompt = f"""
-        Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
-
-        Analiza los datos de este cliente: {json.dumps(user_data)}
-
-        Usa datos macroeconómicos reales y actualizados de Argentina (TNA de Plazo Fijo BNA, Tasa de Política Monetaria BCRA, Inflación REM, valor de Dólar MEP, etc.).
-
-        Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido, sin texto antes ni después. La estructura del JSON debe ser la siguiente:
-        {{
-          "analisis_macro": "Un texto claro y educativo sobre el contexto económico actual de Argentina, explicando cómo afecta a las tasas de interés, la inflación y el dólar. Usa un lenguaje sencillo pero profesional.",
-          "horizonte_meta": "Basado en la meta del cliente y su capacidad de ahorro, calcula un horizonte de tiempo estimado (en meses o años) para alcanzar el objetivo. Explica el cálculo.",
-          "cartera_sugerida": [
-            {{
-              "instrumento": "Nombre del instrumento (ej. Plazo Fijo, FCI Money Market, Letra del Tesoro)",
-              "monto": "Monto a invertir en pesos",
-              "tipo_activo": "Categoría del activo (ej. Renta Fija, Renta Variable, Cobertura)",
-              "tna_estimada": "Tasa Nominal Anual estimada o rendimiento esperado",
-              "fundamento": "Explicación técnica y didáctica de por qué este instrumento es adecuado para el cliente en este momento. Detalla los riesgos y beneficios."
-            }}
-          ],
-          "estrategia_liquidez": "Un plan paso a paso y detallado para manejar la liquidez de corto plazo. Explica qué hacer con el dinero destinado a gastos próximos. Por ejemplo: 'Para cubrir el vencimiento de la tarjeta de $350.000 el día 20, invertir $345.000 en un Fondo Común de Inversión Money Market y rescatar el dinero 24hs antes, el día 19. El resto del dinero para gastos, colocarlo en cauciones a 1 día y renovarlas diariamente hasta la fecha de pago.'",
-          "evolucion_cartera": [
-            {{
-              "mes": "Mes (ej. 'Mes 1', 'Mes 2')",
-              "monto_pesos": "Monto total proyectado de la cartera en pesos",
-              "inflacion_acum_estimada": "Inflación acumulada estimada para ese mes"
-            }}
-          ],
-          "justificacion_general": "Un resumen final que conecte todas las partes de la estrategia, explicando cómo el plan de liquidez, la cartera de inversión y el horizonte de la meta trabajan juntos para cumplir los objetivos del cliente de manera segura y eficiente."
-        }}
-        """
-
+        contexto_usuario = {
+            "saldo_disponible": saldo,
+            "gastos_fijos_mes": gasto_fijo,
+            "dia_pago_gastos": fecha_pago,
+            "pago_tarjeta": tarjeta,
+            "meta_nombre": meta_nombre,
+            "meta_monto": meta_monto,
+            "interes_mep": quiere_mep
+        }
+        
+        # --- LLAMADA A GEMINI CLI CON EL NUEVO PROMPT ---
+        comando = f'gemini "Actúa según @PROMPT_MAESTRO_v2.txt. Datos del cliente: {json.dumps(contexto_usuario)}"'
+        
         try:
-            # LLAMADA CORRECTA A LA API
-            response = model.generate_content(prompt)
+            resultado_raw = subprocess.check_output(comando, shell=True, text=True, stderr=subprocess.STDOUT)
             
-            # Limpieza robusta del JSON de la respuesta
-            raw_text = response.text
-            start = raw_text.find('{')
-            end = raw_text.rfind('}') + 1
-            clean_json = raw_text[start:end]
-            data = json.loads(clean_json)
+            start = resultado_raw.find('{')
+            end = resultado_raw.rfind('}') + 1
+            if start == -1 or end == 0:
+                st.error("Error de formato: La IA no devolvió un JSON válido.")
+                st.code(resultado_raw)
+                st.stop()
 
+            clean_json = resultado_raw[start:end]
+            data = json.loads(clean_json)
+            
             st.success("✅ Estrategia Profesional Generada")
             st.balloons()
 
-            # --- RENDERIZADO DE RESULTADOS MEJORADO ---
-            st.markdown(f"<div class='card'><b>Resumen de Mercado por Nuestro Equipo de Research:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
+            # --- 4. RENDERIZADO DE RESULTADOS MEJORADO ---
+            st.markdown(f"<div class='card'><b>Resumen de Mercado (Equipo de Research BNA):</b><br>{data.get('analisis_macro', 'No disponible.')}</div>", unsafe_allow_html=True)
             
             col_horiz, col_liq = st.columns(2)
             with col_horiz:
-                st.markdown(f"<div class='card'><h3> Horizonte para tu Meta: {meta_nombre}</h3><p>{data['horizonte_meta']}</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='card'><h3> Horizonte para tu Meta: {meta_nombre}</h3><p>{data.get('horizonte_meta', 'Calculando...')}</p></div>", unsafe_allow_html=True)
             with col_liq:
-                st.markdown(f"<div class='card'><h3> Plan de Liquidez (Corto Plazo)</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='card'><h3> Plan de Liquidez (Corto Plazo)</h3><p>{data.get('estrategia_liquidez', 'No disponible.')}</p></div>", unsafe_allow_html=True)
 
             st.subheader("📊 Cartera de Inversión Sugerida")
+            
             df_cartera = pd.DataFrame(data['cartera_sugerida'])
-            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución Propuesta por Tipo de Activo',
-                         color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
-            st.plotly_chart(fig1, use_container_width=True)
+            
+            # Gráfico de Torta
+            fig = px.pie(df_cartera, values='porcentaje_cartera', names='instrumento', title='Distribución Propuesta por Instrumento',
+                         color_discrete_sequence=px.colors.sequential.Agsunset)
+            fig.update_layout(legend_title_text='Instrumentos')
+            st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📋 Fundamentos de cada Instrumento")
+            st.subheader("📋 Fundamentos y Detalles de cada Instrumento")
             for index, row in df_cartera.iterrows():
-                with st.expander(f"**{row['instrumento']}** - Monto: ${int(row['monto']):,}"):
-                    st.markdown(f"**Tipo de Activo:** {row['tipo_activo']}")
-                    st.markdown(f"**Rendimiento Anual Estimado:** {row['tna_estimada']}")
+                # Formateo del título del expander
+                titulo = f"**{row['instrumento']}** ({row['porcentaje_cartera']}%) - Monto: ${int(row['monto']):,}"
+                
+                with st.expander(titulo):
+                    st.markdown(f"**Tipo de Activo:** {row.get('tipo_activo', 'N/A')}")
+                    
+                    if 'tasa_especifica' in row:
+                        st.markdown(f"**Tasa Específica:** {row['tasa_especifica']}")
+                    if 'plazo_sugerido_dias' in row:
+                        st.markdown(f"**Plazo Sugerido:** {row['plazo_sugerido_dias']} días")
+                    
                     st.markdown(f"---")
                     st.markdown(f"**Fundamento Técnico de la Recomendación:**")
-                    st.info(row['fundamento'])
+                    st.info(row.get('fundamento', 'Sin fundamento específico.'))
 
-            st.subheader("📈 Proyección de tu Cartera vs. Inflación (6 Meses)")
-            df_evol = pd.DataFrame(data['evolucion_cartera'])
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4), fill='tozeroy'))
-            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación Acumulada Estimada', line=dict(color='#ff4b4b', width=2, dash='dot')))
-            st.plotly_chart(fig2, use_container_width=True)
-            
+                    # Renderizar la tabla de comparación si existe
+                    if 'comparison_table' in row and row['comparison_table']:
+                        st.markdown(f"**Tabla Comparativa de Instrumentos Similares:**")
+                        df_comp = pd.DataFrame(row['comparison_table'])
+                        st.dataframe(df_comp, use_container_width=True)
+
             st.markdown("---")
-            st.markdown(f"<div class='card'><h3>💡 Justificación General de la Estrategia</h3><p>{data['justificacion_general']}</p></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card'><h3>💡 Justificación General de la Estrategia</h3><p>{data.get('justificacion_general', 'No disponible.')}</p></div>", unsafe_allow_html=True)
 
+        except subprocess.CalledProcessError as e:
+            st.error("Ocurrió un error al ejecutar el comando de la IA.")
+            st.code(e.output)
         except json.JSONDecodeError:
             st.error("Error de formato: La IA no devolvió un JSON válido. Esto puede ocurrir por un fallo temporal.")
-            st.code(raw_text)
+            st.code(resultado_raw)
         except Exception as e:
-            if "429" in str(e):
-                st.error("⏳ Límite de cuota alcanzado. Por favor, esperá un minuto antes de reintentar o considerá habilitar la facturación en tu proyecto de Google Cloud para obtener límites más altos.")
-            else:
-                st.error(f"Ocurrió un error inesperado al comunicarse con la IA.")
-                st.exception(e)
+            st.error(f"Ocurrió un error inesperado.")
+            st.exception(e)
