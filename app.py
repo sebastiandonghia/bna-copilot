@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -6,19 +5,17 @@ import plotly.graph_objects as go
 import google.generativeai as genai
 import json
 import datetime
+import market_data # Import the market_data script
 
 st.write(f"google-generativeai version: {genai.__version__}")
 
 # --- 1. CONFIGURACIÓN DE IA (DRIVER CORREGIDO Y ESTABLE) ---
 try:
-    # Usamos la SDK oficial google-generativeai
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Seleccionamos un modelo robusto y disponible globalmente como 'gemini-pro'.
-    # El error 404 comúnmente ocurre por usar modelos no disponibles en una región.
     model = genai.GenerativeModel('models/gemini-2.5-flash')
 except Exception as e:
     st.error("⚠️ Error de configuración: No se pudo inicializar la IA. Verificá la GOOGLE_API_KEY en los Secrets de Streamlit.")
-    st.exception(e) # Mostramos el error real para facilitar el debug
+    st.exception(e)
     st.stop()
 
 # --- 2. ESTILO VISUAL BNA+ ---
@@ -88,9 +85,30 @@ with col_pref:
 # --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
 if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
 
+    # 1. Obtener datos del mercado en tiempo real
+    with st.spinner("🚀 Obteniendo datos de mercado actualizados..."):
+        exchange_rates = market_data.get_exchange_rates()
+        fci_data = market_data.get_fci_data()
+        sovereign_bonds_data = market_data.get_sovereign_bonds_data()
+        lecap_boncap_data = market_data.get_lecap_boncap_data()
+        bcra_macro_indicators = market_data.get_bcra_macro_indicators()
+        bcra_exchange_rates_summary = market_data.get_bcra_exchange_rates_summary()
+
+    # 2. Consolidar datos del usuario
     user_data = {
         "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
         "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
+    }
+
+    # 3. Consolidar todos los datos del mercado en un contexto para la IA
+    market_context = {
+        "exchange_rates": exchange_rates,
+        "fci_data": fci_data,
+        "sovereign_bonds": sovereign_bonds_data,
+        "lecap_boncap": lecap_boncap_data,
+        "bcra_macro_indicators": bcra_macro_indicators,
+        "bcra_exchange_rates_summary": bcra_exchange_rates_summary,
+        # "cer_data": cer_data # Implementar cuando tengamos una fuente confiable
     }
 
     with st.spinner("🤖 Realizando análisis profundo del mercado y perfil financiero..."):
@@ -98,9 +116,11 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
         prompt = f"""
         Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
 
-        Analiza los datos de este cliente: {json.dumps(user_data)}
+        Analiza los datos de este cliente: {json.dumps(user_data, indent=2)}
 
-        Usa datos macroeconómicos reales y actualizados de Argentina (TNA de Plazo Fijo BNA, Tasa de Política Monetaria BCRA, Inflación REM, valor de Dólar MEP, etc.).
+        Considera el siguiente contexto de mercado actualizado para tus análisis: {json.dumps(market_context, indent=2)}
+
+        Usa datos macroeconómicos reales y actualizados de Argentina (TNA de Plazo Fijo BNA, Tasa de Política Monetaria BCRA, Inflación REM, valor de Dólar MEP, etc.) OBTENIDOS DEL CONTEXTO DE MERCADO PROPORCIONADO.
 
         Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido, sin texto antes ni después. La estructura del JSON debe ser la siguiente:
         {{
@@ -128,9 +148,7 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
         """
 
         try:
-            # LLAMADA CORRECTA A LA API
             response = model.generate_content(prompt)
-
             # Limpieza robusta del JSON de la respuesta
             raw_text = response.text
             start = raw_text.find('{')
