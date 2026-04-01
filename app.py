@@ -137,13 +137,13 @@ if st.button("GENERAR ESTRATEGIA +"):
           ],
           "estrategia_liquidez": "Un plan paso a paso y detallado para manejar la liquidez de corto plazo. Explica qué hacer con el dinero destinado a gastos próximos. Por ejemplo: 'Para cubrir el vencimiento de la tarjeta de $350.000 el día 20, invertir $345.000 en un Fondo Común de Inversión Money Market y rescatar el dinero 24hs antes, el día 19. El resto del dinero para gastos, colocarlo en cauciones a 1 día y renovarlas diariamente hasta la fecha de pago.'",
           "evolucion_cartera": [
-            {
+            {{
               "mes": "Mes (ej. 'Mes 1', 'Mes 2')",
               "monto_pesos": "Monto total proyectado de la cartera en pesos",
               "ingresos_netos_mes": "Ingresos netos esperados para este mes (sueldos - gastos)",
               "egresos_totales_mes": "Egresos totales proyectados para este mes",
               "inflacion_acum_estimada": "Inflación acumulada estimada para ese mes"
-            }
+            }}
           ],
           "justificacion_general": "Un resumen final que conecte todas las partes de la estrategia, explicando cómo el plan de liquidez, la cartera de inversión y el horizonte de la meta trabajan juntos para cumplir los objetivos del cliente de manera segura y eficiente."
         }}
