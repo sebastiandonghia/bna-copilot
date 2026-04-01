@@ -227,10 +227,11 @@ def get_sovereign_bonds_data(filter_by_usd_tickers=True):
             
     return results
 
-def get_lecap_boncap_data():
+def get_lecap_boncap_data(filter_by_default_tickers=True):
     """
     Obtiene los precios de LECAPs y BONCAPs de data912.
     La lógica replica la implementación del endpoint /api/lecaps del repositorio de referencia.
+    Si `filter_by_default_tickers` es False, devuelve todas las notas y bonos relevantes.
     """
     LECAP_TICKERS = ['S17A6','S30A6','S15Y6','S29Y6','S31L6','S31G6','S30S6','S30O6','S30N6']
     BONCAP_TICKERS = ['T30J6','T15E7','T30A7','T31Y7','T30J7']
@@ -247,7 +248,7 @@ def get_lecap_boncap_data():
         bonds_data = bonds_resp.json()
 
         for item in notes_data:
-            if item.get("symbol") in LECAP_TICKERS and float(item.get("c", 0)) > 0:
+            if float(item.get("c", 0)) > 0 and (not filter_by_default_tickers or item.get("symbol") in LECAP_TICKERS):
                 results.append({ 
                     "symbol": item["symbol"], 
                     "price": float(item["c"]), 
@@ -256,7 +257,7 @@ def get_lecap_boncap_data():
                     "type": "LECAP" 
                 })
         for item in bonds_data:
-            if item.get("symbol") in BONCAP_TICKERS and float(item.get("c", 0)) > 0:
+            if float(item.get("c", 0)) > 0 and (not filter_by_default_tickers or item.get("symbol") in BONCAP_TICKERS):
                 results.append({ 
                     "symbol": item["symbol"], 
                     "price": float(item["c"]), 
