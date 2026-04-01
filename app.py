@@ -32,7 +32,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<div class='main-header'><h1>🏦 + Inversiones | Copilot Profesional</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='main-header'><h1>🏦 + Inversiones | Copilot</h1></div>", unsafe_allow_html=True)
 
 # --- 3. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -83,7 +83,7 @@ with col_pref:
     saldo_hoy = st.number_input("Saldo hoy en caja de ahorro ($)", value=1500000)
 
 # --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
-if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
+if st.button("GENERAR ESTRATEGIA +"):
 
     # 1. Obtener datos del mercado en tiempo real
     with st.spinner("🚀 Obteniendo datos de mercado actualizados..."):
@@ -137,11 +137,13 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
           ],
           "estrategia_liquidez": "Un plan paso a paso y detallado para manejar la liquidez de corto plazo. Explica qué hacer con el dinero destinado a gastos próximos. Por ejemplo: 'Para cubrir el vencimiento de la tarjeta de $350.000 el día 20, invertir $345.000 en un Fondo Común de Inversión Money Market y rescatar el dinero 24hs antes, el día 19. El resto del dinero para gastos, colocarlo en cauciones a 1 día y renovarlas diariamente hasta la fecha de pago.'",
           "evolucion_cartera": [
-            {{
+            {
               "mes": "Mes (ej. 'Mes 1', 'Mes 2')",
               "monto_pesos": "Monto total proyectado de la cartera en pesos",
+              "ingresos_netos_mes": "Ingresos netos esperados para este mes (sueldos - gastos)",
+              "egresos_totales_mes": "Egresos totales proyectados para este mes",
               "inflacion_acum_estimada": "Inflación acumulada estimada para ese mes"
-            }}
+            }
           ],
           "justificacion_general": "Un resumen final que conecte todas las partes de la estrategia, explicando cómo el plan de liquidez, la cartera de inversión y el horizonte de la meta trabajan juntos para cumplir los objetivos del cliente de manera segura y eficiente."
         }}
@@ -160,7 +162,7 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
             st.balloons()
 
             # --- RENDERIZADO DE RESULTADOS MEJORADO ---
-            st.markdown(f"<div class='card'><b>Resumen de Mercado por Nuestro Equipo de Research:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card'><b>Resumen de Mercado Generado por Nuestro Copilot de Inversiones:</b><br>{data['analisis_macro']}</div>", unsafe_allow_html=True)
 
             col_horiz, col_liq = st.columns(2)
             with col_horiz:
@@ -169,10 +171,34 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
                 st.markdown(f"<div class='card'><h3> Plan de Liquidez (Corto Plazo)</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
 
             st.subheader("📊 Cartera de Inversión Sugerida")
-            df_cartera = pd.DataFrame(data['cartera_sugerida'])
-            fig1 = px.pie(df_cartera, values='monto', names='tipo_activo', title='Distribución Propuesta por Tipo de Activo',
-                         color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
-            st.plotly_chart(fig1, use_container_width=True)
+            
+            processed_cartera_sugerida = []
+            for item in data['cartera_sugerida']:
+                monto_numeric = 0
+                try:
+                    cleaned_monto = str(item['monto']).replace('$', '').replace('.', '').replace(',', '')
+                    # Extract the numeric part (e.g., from "Inicialmente 3.625.000" take 3625000)
+                    parts = cleaned_monto.split(' ')
+                    if parts and parts[-1].replace('.', '', 1).isdigit(): # Check if last part is numeric
+                         monto_numeric = float(parts[-1])
+                except (ValueError, TypeError):
+                    pass # Keep monto_numeric as 0 if parsing fails
+                
+                new_item = item.copy()
+                new_item['monto'] = monto_numeric
+                processed_cartera_sugerida.append(new_item)
+
+            df_cartera = pd.DataFrame(processed_cartera_sugerida)
+            
+            # Filter out entries with 0 monto for better pie chart representation
+            df_cartera_filtered = df_cartera[df_cartera['monto'] > 0] 
+
+            if not df_cartera_filtered.empty:
+                fig1 = px.pie(df_cartera_filtered, values='monto', names='tipo_activo', title='Distribución Propuesta por Tipo de Activo',
+                             color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.info("No hay montos válidos en la cartera sugerida para mostrar el gráfico de distribución.")
 
             st.subheader("📋 Fundamentos de cada Instrumento")
             for index, row in df_cartera.iterrows():
@@ -213,3 +239,5 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
             else:
                 st.error(f"Ocurrió un error inesperado al comunicarse con la IA.")
                 st.exception(e)
+
+st.info("⚠️ **Aclaración Importante:** La información y estrategias generadas por este Copilot de Inversiones tienen fines educativos e informativos únicamente y no constituyen una recomendación de inversión, asesoramiento financiero ni una oferta de compra o venta de ningún producto financiero. La inversión en mercados financieros conlleva riesgos, incluyendo la posible pérdida del capital invertido. Consultá siempre con un asesor financiero certificado antes de tomar cualquier decisión de inversión.")
