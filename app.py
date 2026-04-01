@@ -6,6 +6,7 @@ import google.generativeai as genai
 import json
 import datetime
 import market_data # Import the market_data script
+import re
 
 st.write(f"google-generativeai version: {genai.__version__}")
 
@@ -171,20 +172,26 @@ if st.button("GENERAR ESTRATEGIA +"):
                 st.markdown(f"<div class='card'><h3> Plan de Liquidez (Corto Plazo)</h3><p>{data['estrategia_liquidez']}</p></div>", unsafe_allow_html=True)
 
             st.subheader("📊 Cartera de Inversión Sugerida")
-            
+
             processed_cartera_sugerida = []
             for item in data['cartera_sugerida']:
                 monto_numeric = 0
+                original_monto_str = str(item.get('monto', '0'))
                 try:
-                    cleaned_monto = str(item['monto']).replace('$', '').replace('.', '').replace(',', '')
-                    # Extract the numeric part (e.g., from "Inicialmente 3.625.000" take 3625000)
-                    parts = cleaned_monto.split(' ')
-                    if parts and parts[-1].replace('.', '', 1).isdigit(): # Check if last part is numeric
-                         monto_numeric = float(parts[-1])
+                    # Use regex to find a number, which can include separators.
+                    # This will extract "1.200.000,50" from "Invertir 1.200.000,50 pesos".
+                    match = re.search(r'(\d[\d.,]*)', original_monto_str)
+                    if match:
+                        num_str = match.group(1)
+                        # Assume Argentinian/Spanish format: '.' is thousands, ',' is decimal.
+                        # Replace all '.' thousands separators, then replace the ',' decimal separator with a '.'.
+                        num_str = num_str.replace('.', '').replace(',', '.')
+                        monto_numeric = float(num_str)
                 except (ValueError, TypeError):
-                    pass # Keep monto_numeric as 0 if parsing fails
-                
+                    pass  # Keep monto_numeric as 0 if parsing fails
+
                 new_item = item.copy()
+                new_item['monto_original_str'] = original_monto_str
                 new_item['monto'] = monto_numeric
                 processed_cartera_sugerida.append(new_item)
 
@@ -202,16 +209,8 @@ if st.button("GENERAR ESTRATEGIA +"):
 
             st.subheader("📋 Fundamentos de cada Instrumento")
             for index, row in df_cartera.iterrows():
-                monto_display = ""
-                try:
-                    # Clean the string, remove '$', thousands separators, and any text
-                    cleaned_monto = str(row['monto']).replace('$', '').replace('.', '').replace(',', '')
-                    # Try to parse float first to handle potential decimal values
-                    numeric_monto = float(cleaned_monto.split(' ')[-1]) # Try to get the last numeric part
-                    monto_display = f"${int(numeric_monto):,}"
-                except (ValueError, TypeError):
-                    # Fallback to displaying the original string if parsing fails
-                    monto_display = str(row['monto'])
+                # Display the original string from the AI for clarity.
+                monto_display = row['monto_original_str']
                 
                 with st.expander(f"**{row['instrumento']}** - Monto: {monto_display}"):
                     st.markdown(f"**Tipo de Activo:** {row['tipo_activo']}")
