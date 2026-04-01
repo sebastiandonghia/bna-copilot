@@ -264,6 +264,80 @@ def get_lecap_boncap_data():
 
     return results
 
+def get_bcra_macro_indicators():
+    """
+    Obtiene los principales indicadores macroeconómicos del BCRA.
+    La lógica replica la implementación del endpoint /api/bcra (sin parametro variable) del repositorio de referencia.
+    """
+    urls_to_fetch = [f"{BCRA_API_BASE_URL}/{var['id']}?limit=2" for var in BCRA_VARS]
+    results = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor: # Limitar workers para no sobrecargar la API
+        bcra_responses = list(executor.map(_fetch_bcra_api, urls_to_fetch))
+
+    for i, var_def in enumerate(BCRA_VARS):
+        response_data = bcra_responses[i]
+        if response_data and response_data.get("results") and response_data["results"].get("detalle"):
+            detalle = response_data["results"]["detalle"]
+            latest = detalle[0] if len(detalle) > 0 else {}
+            previous = detalle[1] if len(detalle) > 1 else {}
+            
+            results.append({
+                "id": var_def["id"],
+                "key": var_def["key"],
+                "nombre": var_def["nombre"],
+                "unidad": var_def["unidad"],
+                "categoria": var_def["categoria"],
+                "formato": var_def["formato"],
+                "valor": latest.get("valor"),
+                "fecha": latest.get("fecha"),
+                "valorAnterior": previous.get("valor"),
+                "fechaAnterior": previous.get("fecha")
+            })
+        else:
+            results.append({**var_def, "valor": None, "fecha": None, "valorAnterior": None, "fechaAnterior": None})
+            
+    return {"data": results, "timestamp": datetime.datetime.now().isoformat()}
+
+def get_bcra_exchange_rates_summary():
+    """
+    Obtiene un resumen de las cotizaciones cambiarias destacadas del BCRA.
+    La lógica replica la implementación del endpoint /api/bcra-cambiarias (sin parametro moneda) del repositorio de referencia.
+    """
+    results = {"fecha": None, "destacadas": [], "otras": [], "timestamp": datetime.datetime.now().isoformat()}
+    try:
+        response_data = _fetch_bcra_api(BCRA_CAMBIARIAS_API_BASE_URL)
+        if response_data and response_data.get("results"):
+            detalle = response_data["results"].get("detalle", [])
+            results["fecha"] = response_data["results"].get("fecha")
+            
+            destacadas = []
+            otras = []
+            for m in detalle:
+                if m.get("tipoCotizacion") is not None and float(m["tipoCotizacion"]) > 0:
+                    item = {
+                        "codigo": m["codigoMoneda"],
+                        "nombre": m["descripcion"],
+                        "cotizacion": float(m["tipoCotizacion"]),
+                        "tipoPase": m["tipoPase"],
+                        "destacada": m["codigoMoneda"] in MONEDAS_DESTACADAS
+                    }
+                    if item["destacada"]:
+                        destacadas.append(item)
+                    else:
+                        otras.append(item)
+            
+            destacadas.sort(key=lambda x: MONEDAS_DESTACADAS.index(x["codigo"]))
+            otras.sort(key=lambda x: x["codigo"])
+            
+            results["destacadas"] = destacadas
+            results["otras"] = otras
+            
+    except Exception as e:
+        print(f"Error fetching BCRA exchange rates summary: {e}")
+    
+    return results
+
 if __name__ == '__main__':
     print("Obteniendo datos del mercado...")
     
@@ -325,3 +399,26 @@ if __name__ == '__main__':
             print(f"... y {len(lecap_boncap_data) - 5} más.")
     else:
         print("No se pudieron obtener datos de LECAPs y BONCAPs.")
+
+    # --- Test get_bcra_macro_indicators ---
+    print("\n--- Indicadores Macroeconómicos BCRA ---")
+    bcra_macro_data = get_bcra_macro_indicators()
+    if bcra_macro_data["data"]:
+        for indicator in bcra_macro_data["data"][:5]:
+            print(f"- {indicator['nombre']} ({indicator['unidad']}): {indicator['valor']} (Fecha: {indicator['fecha']})")
+        if len(bcra_macro_data["data"]) > 5:
+            print(f"... y {len(bcra_macro_data['data']) - 5} más.")
+    else:
+        print("No se pudieron obtener Indicadores Macroeconómicos del BCRA.")
+    
+    # --- Test get_bcra_exchange_rates_summary ---
+    print("\n--- Resumen Cotizaciones BCRA (Destacadas) ---")
+    bcra_exchange_data = get_bcra_exchange_rates_summary()
+    if bcra_exchange_data["destacadas"]:
+        print(f"Fecha: {bcra_exchange_data['fecha']}")
+        for exchange in bcra_exchange_data["destacadas"][:5]:
+            print(f"- {exchange['nombre']} ({exchange['codigo']}): {exchange['cotizacion']:.4f}")
+        if len(bcra_exchange_data["destacadas"]) > 5:
+            print(f"... y {len(bcra_exchange_data['destacadas']) - 5} más.")
+    else:
+        print("No se pudieron obtener Cotizaciones Destacadas del BCRA.")
