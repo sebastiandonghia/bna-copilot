@@ -22,7 +22,6 @@ except Exception as e:
     st.stop()
 
 # --- 2. ESTILO VISUAL BNA+ ---
-st.set_page_config(page_title="BNA+ Copilot | Inversiones", page_icon="🏦", layout="wide")
 st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layout="wide")
 
 st.markdown("""
@@ -36,7 +35,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("<div class='main-header'><h1>🏦 BNA+ Inversiones | Copilot Profesional</h1></div>", unsafe_allow_html=True)
 st.markdown("<div class='main-header'><h1>🏦 + Inversiones | Copilot Profesional</h1></div>", unsafe_allow_html=True)
 
 # --- 3. CUESTIONARIO FINANCIERO ---
@@ -88,7 +86,6 @@ with col_pref:
     saldo_hoy = st.number_input("Saldo hoy en caja de ahorro ($)", value=1500000)
 
 # --- 4. MOTOR DE ESTRATEGIA (IA + PLOTLY) ---
-if st.button("GENERAR ESTRATEGIA PROFESIONAL BNA+"):
 if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
 
     user_data = {
