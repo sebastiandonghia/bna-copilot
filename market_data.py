@@ -277,25 +277,39 @@ def get_bcra_macro_indicators():
 
     for i, var_def in enumerate(BCRA_VARS):
         response_data = bcra_responses[i]
-        if response_data and response_data.get("results") and response_data["results"].get("detalle"):
-            detalle = response_data["results"]["detalle"]
-            latest = detalle[0] if len(detalle) > 0 else {}
-            previous = detalle[1] if len(detalle) > 1 else {}
+        
+        valor = None
+        fecha = None
+        valor_anterior = None
+        fecha_anterior = None
+
+        # Check if response_data is a dictionary and has 'results' key which is a list
+        if isinstance(response_data, dict) and response_data.get("results") and isinstance(response_data["results"], list) and len(response_data["results"]) > 0:
+            # Access the first item in the 'results' list, which contains 'detalle'
+            first_result_item = response_data["results"][0]
+            if isinstance(first_result_item, dict) and first_result_item.get("detalle"):
+                detalle = first_result_item["detalle"]
+                if len(detalle) > 0:
+                    latest = detalle[0]
+                    valor = latest.get("valor")
+                    fecha = latest.get("fecha")
+                if len(detalle) > 1:
+                    previous = detalle[1]
+                    valor_anterior = previous.get("valor")
+                    fecha_anterior = previous.get("fecha")
             
-            results.append({
-                "id": var_def["id"],
-                "key": var_def["key"],
-                "nombre": var_def["nombre"],
-                "unidad": var_def["unidad"],
-                "categoria": var_def["categoria"],
-                "formato": var_def["formato"],
-                "valor": latest.get("valor"),
-                "fecha": latest.get("fecha"),
-                "valorAnterior": previous.get("valor"),
-                "fechaAnterior": previous.get("fecha")
-            })
-        else:
-            results.append({**var_def, "valor": None, "fecha": None, "valorAnterior": None, "fechaAnterior": None})
+        results.append({
+            "id": var_def["id"],
+            "key": var_def["key"],
+            "nombre": var_def["nombre"],
+            "unidad": var_def["unidad"],
+            "categoria": var_def["categoria"],
+            "formato": var_def["formato"],
+            "valor": valor,
+            "fecha": fecha,
+            "valorAnterior": valor_anterior,
+            "fechaAnterior": fecha_anterior
+        })
             
     return {"data": results, "timestamp": datetime.datetime.now().isoformat()}
 
