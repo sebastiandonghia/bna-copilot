@@ -220,11 +220,28 @@ if st.button("GENERAR ESTRATEGIA +"):
                     st.markdown(f"**Fundamento Técnico de la Recomendación:**")
                     st.info(row['fundamento'])
 
-            st.subheader("📈 Proyección de tu Cartera vs. Inflación (6 Meses)")
+            st.subheader("📈 Proyección de Flujo de Efectivo y Cartera (6 Meses)")
             df_evol = pd.DataFrame(data['evolucion_cartera'])
             fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4), fill='tozeroy'))
-            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación Acumulada Estimada', line=dict(color='#ff4b4b', width=2, dash='dot')))
+
+            # Capital Proyectado (Line)
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', 
+                                      line=dict(color='#005691', width=4), mode='lines+markers'))
+            # Inflación Acumulada Estimada (Line)
+            fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación Acumulada Estimada', 
+                                      line=dict(color='#ff4b4b', width=2, dash='dot'), mode='lines+markers'))
+            
+            # Ingresos Netos (Bar)
+            if 'ingresos_netos_mes' in df_evol.columns:
+                fig2.add_trace(go.Bar(x=df_evol['mes'], y=df_evol['ingresos_netos_mes'], name='Ingresos Netos Mensuales',
+                                      marker_color='green', opacity=0.6))
+            # Egresos Totales (Bar)
+            if 'egresos_totales_mes' in df_evol.columns:
+                fig2.add_trace(go.Bar(x=df_evol['mes'], y=df_evol['egresos_totales_mes'], name='Egresos Totales Mensuales',
+                                      marker_color='red', opacity=0.6))
+
+            fig2.update_layout(barmode='overlay', # Overlay bars if both incomes/expenses are present
+                               yaxis_title='Monto ($)')
             st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
