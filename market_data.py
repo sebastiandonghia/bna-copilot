@@ -180,10 +180,11 @@ def get_fci_data():
 
     return sorted(results, key=lambda x: x['tna'], reverse=True)
 
-def get_sovereign_bonds_data():
+def get_sovereign_bonds_data(filter_by_usd_tickers=True):
     """
     Obtiene los precios de bonos soberanos en USD de data912.
     La lógica replica la implementación del endpoint /api/soberanos del repositorio de referencia.
+    Si `filter_by_usd_tickers` es False, devuelve todos los bonos soberanos.
     """
     TICKERS_USD = ['BPD7D','AO27D','AN29D','AL29D','AL30D','AL35D','AE38D','AL41D','GD29D','GD30D','GD35D','GD38D','GD41D']
     results = []
@@ -196,19 +197,27 @@ def get_sovereign_bonds_data():
             raise ValueError('Invalid data912 API response format for bonds')
 
         for bond in data:
-            if bond.get("symbol") in TICKERS_USD:
-                price_usd = float(bond.get("c", 0))
-                if price_usd <= 0:
-                    continue
-                base_symbol = bond["symbol"].replace('D', '') # Remove 'D' for base symbol
-                results.append({
-                    "symbol": base_symbol,
-                    "price_usd": price_usd,
-                    "bid": float(bond.get("px_bid", 0)),
-                    "ask": float(bond.get("px_ask", 0)),
-                    "volume": bond.get("v", 0),
-                    "pct_change": bond.get("pct_change", 0),
-                })
+            if filter_by_usd_tickers and bond.get("symbol") not in TICKERS_USD:
+                continue
+            
+            price_usd = float(bond.get("c", 0))
+            if price_usd <= 0:
+                continue
+            
+            # Remove 'D' for base symbol only if it's an USD ticker that had 'D'
+            base_symbol = bond["symbol"]
+            if filter_by_usd_tickers and base_symbol.endswith('D'):
+                 base_symbol = base_symbol[:-1] # Remove 'D' for base symbol
+
+            results.append({
+                "symbol": base_symbol,
+                "full_symbol": bond.get("symbol"), # Keep full symbol for reference
+                "price_usd": price_usd,
+                "bid": float(bond.get("px_bid", 0)),
+                "ask": float(bond.get("px_ask", 0)),
+                "volume": bond.get("v", 0),
+                "pct_change": bond.get("pct_change", 0),
+            })
     except requests.exceptions.RequestException as e:
         print(f"Error fetching sovereign bonds data: {e}")
     except ValueError as e:
