@@ -176,7 +176,18 @@ if st.button("GENERAR ESTRATEGIA PROFESIONAL +"):
 
             st.subheader("📋 Fundamentos de cada Instrumento")
             for index, row in df_cartera.iterrows():
-                with st.expander(f"**{row['instrumento']}** - Monto: ${int(row['monto']):,}"):
+                monto_display = ""
+                try:
+                    # Clean the string, remove '$', thousands separators, and any text
+                    cleaned_monto = str(row['monto']).replace('$', '').replace('.', '').replace(',', '')
+                    # Try to parse float first to handle potential decimal values
+                    numeric_monto = float(cleaned_monto.split(' ')[-1]) # Try to get the last numeric part
+                    monto_display = f"${int(numeric_monto):,}"
+                except (ValueError, TypeError):
+                    # Fallback to displaying the original string if parsing fails
+                    monto_display = str(row['monto'])
+                
+                with st.expander(f"**{row['instrumento']}** - Monto: {monto_display}"):
                     st.markdown(f"**Tipo de Activo:** {row['tipo_activo']}")
                     st.markdown(f"**Rendimiento Anual Estimado:** {row['tna_estimada']}")
                     st.markdown(f"---")
