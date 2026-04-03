@@ -7,22 +7,33 @@ import json
 import datetime
 import re
 
-# Importamos los módulos que funcionan perfecto de forma externa
+# Importamos nuestros módulos modularizados
 import ui_components
 import data_orchestrator
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layout="wide")
+
+# --- 1. CONFIGURACIÓN DE IA (SOLUCIÓN DE ESTABILIDAD DEFINITIVA) ---
+@st.cache_resource
+def setup_ai():
+    """Configura el modelo Gemini de forma persistente para la sesión."""
+    try:
+        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+        # Usamos el nombre de modelo más estable para la API v1beta
+        return genai.GenerativeModel('gemini-1.5-flash')
+    except Exception as e:
+        st.error(f"Error al configurar Gemini: {e}")
+        return None
+
+model = setup_ai()
+
+# Aplicar estilos y encabezado (Modularizado)
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# CONFIGURACIÓN DE IA (REINTENTOS AUTOMÁTICOS PARA ESTABILIDAD)
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
-except Exception as e:
-    st.error("⚠️ Error de configuración de IA.")
-    st.stop()
+# Mostrar versión de la librería para depuración (Igual que en la demo)
+st.write(f"google-generativeai version: {genai.__version__}")
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -75,10 +86,10 @@ with col_pref:
 # --- 3. PROCESAMIENTO Y ESTRATEGIA ---
 if st.button("GENERAR ESTRATEGIA +"):
     
-    # Obtenemos todo el contexto de mercado mediante el orquestador (Modularizado)
+    # 1. Obtenemos todo el contexto de mercado mediante el orquestador
     market_context = data_orchestrator.get_all_market_context()
 
-    if market_context:
+    if market_context and model:
         # Consolidamos datos del usuario
         user_data = {
             "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
@@ -87,31 +98,22 @@ if st.button("GENERAR ESTRATEGIA +"):
 
         with st.spinner("🤖 El Copilot está analizando tu situación..."):
             try:
-                # PROMPT INTEGRADO (Solución de estabilidad para Streamlit Cloud)
+                # Prompt idéntico al que funcionaba en la demo
                 prompt = f"""
-                Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
-
-                Analiza los datos de este cliente: {json.dumps(user_data, indent=2)}
-                Considera el siguiente contexto de mercado actualizado: {json.dumps(market_context, indent=2)}
-
-                Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido.
-                """
-                # Agregamos el resto del prompt maestro para asegurar calidad
-                prompt += """
-                La estructura del JSON debe ser:
-                {
-                  "analisis_macro": "Texto educativo...",
-                  "horizonte_meta": "Cálculo tiempo...",
-                  "cartera_sugerida": [{"instrumento": "...", "monto": "...", "tipo_activo": "...", "tna_estimada": "...", "fundamento": "..."}],
-                  "estrategia_liquidez": "Plan detallado...",
-                  "evolucion_cartera": [{"mes": "Mes 1", "monto_pesos": 1000000, "ingresos_netos_mes": 500000, "egresos_totales_mes": 200000, "inflacion_acum_estimada": "5%"}],
-                  "justificacion_general": "Resumen final."
-                }
+                Actúa como un Asesor Financiero Fiduciario Senior del BNA.
+                Analiza los datos de este cliente: {json.dumps(user_data)}
+                Considera el siguiente contexto de mercado actualizado: {json.dumps(market_context)}
+                Tu respuesta DEBE SER UN OBJETO JSON VÁLIDO con: analisis_macro, horizonte_meta, cartera_sugerida (instrumento, monto, tipo_activo, tna_estimada, fundamento), estrategia_liquidez, evolucion_cartera (mes, monto_pesos, ingresos_netos_mes, egresos_totales_mes, inflacion_acum_estimada), justificacion_general.
                 """
 
-                # Generación directa en el archivo principal
+                # Generación usando el modelo persistente
                 response = model.generate_content(prompt)
-                data = json.loads(response.text[response.text.find('{'):response.text.rfind('}')+1])
+                
+                # Extracción robusta del JSON
+                raw_text = response.text
+                start = raw_text.find('{')
+                end = raw_text.rfind('}') + 1
+                data = json.loads(raw_text[start:end])
 
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
@@ -127,7 +129,7 @@ if st.button("GENERAR ESTRATEGIA +"):
 
                 st.subheader("📊 Cartera de Inversión Sugerida")
 
-                # Procesamiento de montos para gráficos
+                # Procesamiento de montos para gráficos (Regex robusto)
                 processed_cartera = []
                 for item in data['cartera_sugerida']:
                     monto_numeric = 0
@@ -137,26 +139,35 @@ if st.button("GENERAR ESTRATEGIA +"):
                         num_str = match.group(1).replace('.', '').replace(',', '.')
                         try: monto_numeric = float(num_str)
                         except: pass
-                    processed_cartera.append({"inst": item['instrumento'], "monto_n": monto_numeric, "tipo": item['tipo_activo'], "fund": item['fundamento'], "tna": item['tna_estimada'], "monto_orig": monto_str})
+                    
+                    new_item = item.copy()
+                    new_item['monto_num'] = monto_numeric
+                    processed_cartera.append(new_item)
 
                 df_cartera = pd.DataFrame(processed_cartera)
+                
                 if not df_cartera.empty:
-                    fig1 = px.pie(df_cartera[df_cartera['monto_n'] > 0], values='monto_n', names='tipo', title='Distribución Propuesta')
+                    fig1 = px.pie(df_cartera[df_cartera['monto_num'] > 0], values='monto_num', names='tipo_activo', 
+                                 title='Distribución por Tipo de Activo',
+                                 color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
                     st.plotly_chart(fig1, use_container_width=True)
 
+                st.subheader("📋 Fundamentos de cada Instrumento")
                 for item in processed_cartera:
-                    with st.expander(f"**{item['inst']}** - Monto: {item['monto_orig']}"):
-                        st.info(item['fund'])
+                    with st.expander(f"**{item['instrumento']}** - Monto: {item.get('monto', 'N/A')}"):
+                        st.markdown(f"**Rendimiento:** {item['tna_estimada']} | **Tipo:** {item['tipo_activo']}")
+                        st.info(item['fundamento'])
 
-                st.subheader("📈 Proyección a 6 Meses")
+                st.subheader("📈 Proyección de Flujo de Efectivo (6 Meses)")
                 df_evol = pd.DataFrame(data['evolucion_cartera'])
                 fig2 = go.Figure()
                 fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4)))
                 st.plotly_chart(fig2, use_container_width=True)
 
+                st.markdown("---")
                 ui_components.render_card("💡 Justificación General", data['justificacion_general'])
 
             except Exception as e:
-                st.error(f"Error al procesar la estrategia: {e}")
+                st.error(f"Error al procesar la estrategia con la IA: {e}")
 
 st.info("⚠️ Esta información es educativa y no constituye una recomendación de inversión.")
