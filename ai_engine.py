@@ -6,8 +6,8 @@ def configure_ai():
     """Configura el modelo generativo de Google."""
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        # Cambiamos 'models/gemini-1.5-flash' por 'gemini-1.5-flash' (más compatible)
-        return genai.GenerativeModel('gemini-1.5-flash')
+        # Volvemos al nombre exacto que funcionaba en tu app original
+        return genai.GenerativeModel('models/gemini-1.5-flash')
     except Exception as e:
         st.error("⚠️ Error de configuración de IA: Verificá tu API KEY.")
         st.stop()
