@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import google.generativeai as genai
 import json
 import datetime
 import re
@@ -16,7 +17,16 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# El motor de IA se configura automáticamente al generar la estrategia en ai_engine
+st.write(f"google-generativeai version: {genai.__version__}")
+
+# CONFIGURACIÓN DE IA (PATRÓN EXACTO DE LA DEMO)
+try:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
+except Exception as e:
+    st.error("⚠️ Error de configuración: No se pudo inicializar la IA.")
+    st.exception(e)
+    st.stop()
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -81,8 +91,8 @@ if st.button("GENERAR ESTRATEGIA +"):
 
         with st.spinner("🤖 El Copilot está analizando tu situación..."):
             try:
-                # Generamos la estrategia usando el motor de IA autoconfigurado
-                data = ai_engine.generate_strategy(user_data, market_context)
+                # Generamos la estrategia usando el motor de IA y el modelo global
+                data = ai_engine.generate_strategy(model, user_data, market_context)
 
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
