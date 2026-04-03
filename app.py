@@ -19,11 +19,7 @@ ui_components.render_header()
 # CONFIGURACIÓN DE IA (REINTENTOS AUTOMÁTICOS PARA ESTABILIDAD)
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    # Intentamos con la nomenclatura más moderna primero
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-    except:
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
 except Exception as e:
     st.error("⚠️ Error de configuración de IA.")
     st.stop()
