@@ -6,7 +6,7 @@ import json
 import datetime
 import re
 
-# Importamos nuestros nuevos módulos modularizados
+# Importamos nuestros módulos modularizados
 import ui_components
 import ai_engine
 import data_orchestrator
@@ -16,8 +16,7 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# Inicializar IA
-model = ai_engine.configure_ai()
+# El motor de IA se configura automáticamente al generar la estrategia en ai_engine
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -82,8 +81,8 @@ if st.button("GENERAR ESTRATEGIA +"):
 
         with st.spinner("🤖 El Copilot está analizando tu situación..."):
             try:
-                # Generamos la estrategia usando el motor de IA
-                data = ai_engine.generate_strategy(model, user_data, market_context)
+                # Generamos la estrategia usando el motor de IA autoconfigurado
+                data = ai_engine.generate_strategy(user_data, market_context)
 
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
