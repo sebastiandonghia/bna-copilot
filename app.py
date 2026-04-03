@@ -16,10 +16,14 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# CONFIGURACIÓN DE IA (IGUAL A LA DEMO, EN EL ARCHIVO PRINCIPAL)
+# CONFIGURACIÓN DE IA (REINTENTOS AUTOMÁTICOS PARA ESTABILIDAD)
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
+    # Intentamos con la nomenclatura más moderna primero
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except:
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
 except Exception as e:
     st.error("⚠️ Error de configuración de IA.")
     st.stop()
