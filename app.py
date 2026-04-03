@@ -16,32 +16,38 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# AUTO-MODEL DISCOVERY (Solución indestructible para errores 404)
+# AUTO-MODEL DISCOVERY (Versión corregida sin comandos de UI en el caché)
 @st.cache_resource
-def get_best_model():
-    """Busca dinámicamente el modelo Flash disponible para esta API Key."""
+def get_best_model_name():
+    """Busca dinámicamente el nombre del modelo Flash disponible."""
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        # Buscamos modelos que soporten generación y sean de la familia 'flash'
-        available_models = [m.name for m in genai.list_models() 
-                           if 'generateContent' in m.supported_generation_methods 
-                           and 'flash' in m.name.lower()]
+        # Obtenemos la lista de nombres de modelos
+        models = [m.name for m in genai.list_models() 
+                  if 'generateContent' in m.supported_generation_methods 
+                  and 'flash' in m.name.lower()]
         
-        if available_models:
-            # Nos quedamos con el primero que sea 1.5 o superior si es posible
-            flash_15 = [m for m in available_models if '1.5' in m]
-            best_model_name = flash_15[0] if flash_15 else available_models[0]
-            st.toast(f"🤖 IA Conectada vía: {best_model_name}")
-            return genai.GenerativeModel(best_model_name)
-        else:
-            st.error("❌ No se encontraron modelos Gemini Flash disponibles para esta cuenta.")
+        if not models:
             return None
-    except Exception as e:
-        st.error(f"Error al conectar con la IA de Google: {e}")
+            
+        # Priorizamos versiones 1.5
+        flash_15 = [m for m in models if '1.5' in m]
+        return flash_15[0] if flash_15 else models[0]
+    except:
         return None
 
-# Inicializamos el mejor modelo disponible
-model = get_best_model()
+# Inicialización fuera del caché para evitar errores de Replay
+model_name = get_best_model_name()
+model = None
+
+if model_name:
+    try:
+        model = genai.GenerativeModel(model_name)
+        st.toast(f"🤖 IA lista ({model_name})")
+    except Exception as e:
+        st.error(f"Error al inicializar el modelo: {e}")
+else:
+    st.error("❌ No se pudo conectar con la IA de Google. Verificá tu API KEY.")
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -104,7 +110,7 @@ if st.button("GENERAR ESTRATEGIA +"):
             "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
         }
 
-        with st.spinner("🤖 Analizando con el mejor modelo de IA disponible..."):
+        with st.spinner("🤖 El Copilot está analizando el mercado y tu situación..."):
             try:
                 # El Prompt Maestro integrado
                 prompt = f"""
@@ -126,7 +132,7 @@ if st.button("GENERAR ESTRATEGIA +"):
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
 
-                # --- 4. RENDERIZADO DE RESULTADOS (Modularizado) ---
+                # --- 4. RENDERIZADO DE RESULTADOS ---
                 ui_components.render_card("Resumen de Mercado", data['analisis_macro'])
 
                 col_horiz, col_liq = st.columns(2)
@@ -169,5 +175,10 @@ if st.button("GENERAR ESTRATEGIA +"):
 
             except Exception as e:
                 st.error(f"Error técnico al generar la estrategia: {e}")
+    else:
+        if not model:
+            st.error("❌ El motor de IA no está disponible.")
+        if not market_context:
+            st.error("❌ No se pudieron obtener los datos de mercado.")
 
 st.info("⚠️ Esta información es educativa y no constituye asesoramiento financiero.")
