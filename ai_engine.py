@@ -6,11 +6,15 @@ def configure_ai():
     """Configura el modelo generativo de Google."""
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        # Volvemos al nombre exacto que funcionaba en tu app original
-        return genai.GenerativeModel('models/gemini-1.5-flash')
+        # Intentamos primero con el nombre corto, que es el más estándar hoy
+        return genai.GenerativeModel('gemini-1.5-flash')
     except Exception as e:
-        st.error("⚠️ Error de configuración de IA: Verificá tu API KEY.")
-        st.stop()
+        # Si falla, intentamos con el nombre largo por las dudas
+        try:
+            return genai.GenerativeModel('models/gemini-1.5-flash')
+        except:
+            st.error("⚠️ No se pudo inicializar el modelo Gemini. Verificá tu API KEY.")
+            st.stop()
 
 def generate_strategy(model, user_data, market_context):
     """
