@@ -1,17 +1,12 @@
 import google.generativeai as genai
 import json
-import streamlit as st
 
-def generate_strategy(user_data, market_context):
+def generate_strategy(model, user_data, market_context):
     """
-    Configura e invoca a Gemini 1.5 Flash tal como funcionaba en la app original.
+    Usa el modelo ya configurado para generar la estrategia.
     """
     try:
-        # 1. Configuración idéntica a app_bna_demo.py
-        genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        model = genai.GenerativeModel('models/gemini-1.5-flash')
-
-        # 2. El Prompt Maestro (mantenemos el que ya teníamos)
+        # El Prompt Maestro
         prompt = f"""
         Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
 
@@ -48,16 +43,15 @@ def generate_strategy(user_data, market_context):
         }}
         """
 
-        # 3. Generación de contenido
+        # Generación de contenido usando el modelo pasado por parámetro
         response = model.generate_content(prompt)
         raw_text = response.text
         
-        # 4. Limpieza de JSON
+        # Limpieza de JSON
         start = raw_text.find('{')
         end = raw_text.rfind('}') + 1
         clean_json = raw_text[start:end]
         return json.loads(clean_json)
 
     except Exception as e:
-        # Capturamos el error específico para debuggear mejor
         raise Exception(f"Error en el motor de IA: {str(e)}")
