@@ -7,9 +7,8 @@ import json
 import datetime
 import re
 
-# Importamos nuestros módulos modularizados
+# Importamos los módulos que funcionan perfecto de forma externa
 import ui_components
-import ai_engine
 import data_orchestrator
 
 # --- 1. CONFIGURACIÓN Y ESTILO ---
@@ -17,15 +16,12 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-st.write(f"google-generativeai version: {genai.__version__}")
-
-# CONFIGURACIÓN DE IA (PATRÓN EXACTO DE LA DEMO)
+# CONFIGURACIÓN DE IA (IGUAL A LA DEMO, EN EL ARCHIVO PRINCIPAL)
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     model = genai.GenerativeModel('models/gemini-1.5-flash')
 except Exception as e:
-    st.error("⚠️ Error de configuración: No se pudo inicializar la IA.")
-    st.exception(e)
+    st.error("⚠️ Error de configuración de IA.")
     st.stop()
 
 # --- 2. CUESTIONARIO FINANCIERO ---
@@ -79,7 +75,7 @@ with col_pref:
 # --- 3. PROCESAMIENTO Y ESTRATEGIA ---
 if st.button("GENERAR ESTRATEGIA +"):
     
-    # Obtenemos todo el contexto de mercado mediante el orquestador
+    # Obtenemos todo el contexto de mercado mediante el orquestador (Modularizado)
     market_context = data_orchestrator.get_all_market_context()
 
     if market_context:
@@ -91,13 +87,36 @@ if st.button("GENERAR ESTRATEGIA +"):
 
         with st.spinner("🤖 El Copilot está analizando tu situación..."):
             try:
-                # Generamos la estrategia usando el motor de IA y el modelo global
-                data = ai_engine.generate_strategy(model, user_data, market_context)
+                # PROMPT INTEGRADO (Solución de estabilidad para Streamlit Cloud)
+                prompt = f"""
+                Actúa como un Asesor Financiero Fiduciario Senior del BNA, tu máxima prioridad es la seguridad y el bienestar financiero del cliente. Eres extremadamente claro, didáctico y tus recomendaciones se basan en fundamentos técnicos sólidos y profundos del mercado argentino. El dinero de la gente es una gran responsabilidad.
+
+                Analiza los datos de este cliente: {json.dumps(user_data, indent=2)}
+                Considera el siguiente contexto de mercado actualizado: {json.dumps(market_context, indent=2)}
+
+                Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido.
+                """
+                # Agregamos el resto del prompt maestro para asegurar calidad
+                prompt += """
+                La estructura del JSON debe ser:
+                {
+                  "analisis_macro": "Texto educativo...",
+                  "horizonte_meta": "Cálculo tiempo...",
+                  "cartera_sugerida": [{"instrumento": "...", "monto": "...", "tipo_activo": "...", "tna_estimada": "...", "fundamento": "..."}],
+                  "estrategia_liquidez": "Plan detallado...",
+                  "evolucion_cartera": [{"mes": "Mes 1", "monto_pesos": 1000000, "ingresos_netos_mes": 500000, "egresos_totales_mes": 200000, "inflacion_acum_estimada": "5%"}],
+                  "justificacion_general": "Resumen final."
+                }
+                """
+
+                # Generación directa en el archivo principal
+                response = model.generate_content(prompt)
+                data = json.loads(response.text[response.text.find('{'):response.text.rfind('}')+1])
 
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
 
-                # --- 4. RENDERIZADO DE RESULTADOS ---
+                # --- 4. RENDERIZADO DE RESULTADOS (Modularizado) ---
                 ui_components.render_card("Resumen de Mercado", data['analisis_macro'])
 
                 col_horiz, col_liq = st.columns(2)
@@ -108,7 +127,7 @@ if st.button("GENERAR ESTRATEGIA +"):
 
                 st.subheader("📊 Cartera de Inversión Sugerida")
 
-                # Procesamiento de montos para gráficos (Regex robusto)
+                # Procesamiento de montos para gráficos
                 processed_cartera = []
                 for item in data['cartera_sugerida']:
                     monto_numeric = 0
@@ -118,36 +137,26 @@ if st.button("GENERAR ESTRATEGIA +"):
                         num_str = match.group(1).replace('.', '').replace(',', '.')
                         try: monto_numeric = float(num_str)
                         except: pass
-                    
-                    new_item = item.copy()
-                    new_item['monto_num'] = monto_numeric
-                    processed_cartera.append(new_item)
+                    processed_cartera.append({"inst": item['instrumento'], "monto_n": monto_numeric, "tipo": item['tipo_activo'], "fund": item['fundamento'], "tna": item['tna_estimada'], "monto_orig": monto_str})
 
                 df_cartera = pd.DataFrame(processed_cartera)
-                
                 if not df_cartera.empty:
-                    fig1 = px.pie(df_cartera[df_cartera['monto_num'] > 0], values='monto_num', names='tipo_activo', 
-                                 title='Distribución por Tipo de Activo',
-                                 color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
+                    fig1 = px.pie(df_cartera[df_cartera['monto_n'] > 0], values='monto_n', names='tipo', title='Distribución Propuesta')
                     st.plotly_chart(fig1, use_container_width=True)
 
-                st.subheader("📋 Fundamentos de cada Instrumento")
                 for item in processed_cartera:
-                    with st.expander(f"**{item['instrumento']}** - Monto: {item.get('monto', 'N/A')}"):
-                        st.markdown(f"**Rendimiento:** {item['tna_estimada']} | **Tipo:** {item['tipo_activo']}")
-                        st.info(item['fundamento'])
+                    with st.expander(f"**{item['inst']}** - Monto: {item['monto_orig']}"):
+                        st.info(item['fund'])
 
-                st.subheader("📈 Proyección de Flujo de Efectivo (6 Meses)")
+                st.subheader("📈 Proyección a 6 Meses")
                 df_evol = pd.DataFrame(data['evolucion_cartera'])
                 fig2 = go.Figure()
                 fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4)))
-                fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['inflacion_acum_estimada'], name='Inflación', line=dict(color='#ff4b4b', dash='dot')))
                 st.plotly_chart(fig2, use_container_width=True)
 
-                st.markdown("---")
                 ui_components.render_card("💡 Justificación General", data['justificacion_general'])
 
             except Exception as e:
                 st.error(f"Error al procesar la estrategia: {e}")
 
-st.info("⚠️ **Aclaración:** Esta información es educativa y no constituye una recomendación de inversión.")
+st.info("⚠️ Esta información es educativa y no constituye una recomendación de inversión.")
