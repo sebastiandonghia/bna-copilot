@@ -16,27 +16,20 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# AUTO-MODEL DISCOVERY (Versión corregida sin comandos de UI en el caché)
+# AUTO-MODEL DISCOVERY
 @st.cache_resource
 def get_best_model_name():
     """Busca dinámicamente el nombre del modelo Flash disponible."""
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        # Obtenemos la lista de nombres de modelos
         models = [m.name for m in genai.list_models() 
                   if 'generateContent' in m.supported_generation_methods 
                   and 'flash' in m.name.lower()]
-        
-        if not models:
-            return None
-            
-        # Priorizamos versiones 1.5
+        if not models: return None
         flash_15 = [m for m in models if '1.5' in m]
         return flash_15[0] if flash_15 else models[0]
-    except:
-        return None
+    except: return None
 
-# Inicialización fuera del caché para evitar errores de Replay
 model_name = get_best_model_name()
 model = None
 
@@ -44,10 +37,9 @@ if model_name:
     try:
         model = genai.GenerativeModel(model_name)
         st.toast(f"🤖 IA lista ({model_name})")
-    except Exception as e:
-        st.error(f"Error al inicializar el modelo: {e}")
+    except: st.error("Error al inicializar el modelo.")
 else:
-    st.error("❌ No se pudo conectar con la IA de Google. Verificá tu API KEY.")
+    st.error("❌ No se pudo conectar con la IA. Verificá tu API KEY.")
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -99,86 +91,87 @@ with col_pref:
 
 # --- 3. PROCESAMIENTO Y ESTRATEGIA ---
 if st.button("GENERAR ESTRATEGIA +"):
-    
-    # 1. Obtenemos todo el contexto de mercado mediante el orquestador
     market_context = data_orchestrator.get_all_market_context()
 
     if market_context and model:
-        # Consolidamos datos del usuario
         user_data = {
             "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
             "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
         }
 
-        with st.spinner("🤖 El Copilot está analizando el mercado y tu situación..."):
+        with st.spinner("🤖 Generando estrategia financiera personalizada..."):
             try:
-                # El Prompt Maestro integrado
+                # PROMPT MAESTRO COMPLETO Y DETALLADO
                 prompt = f"""
-                Actúa como un Asesor Financiero Senior del BNA.
-                Cliente: {json.dumps(user_data)}
-                Mercado: {json.dumps(market_context)}
-                Tu respuesta DEBE SER UN OBJETO JSON VÁLIDO.
+                Actúa como un Asesor Financiero Senior del BNA. Tu prioridad es la seguridad y bienestar del cliente.
+                Analiza los datos del cliente: {json.dumps(user_data, indent=2)}
+                Analiza el contexto de mercado: {json.dumps(market_context, indent=2)}
+
+                Tu respuesta DEBE SER EXCLUSIVAMENTE un objeto JSON válido con esta estructura:
+                {{
+                  "analisis_macro": "Explicación del contexto económico de Argentina.",
+                  "horizonte_meta": "Cálculo estimado para alcanzar el objetivo.",
+                  "cartera_sugerida": [
+                    {{
+                      "instrumento": "Nombre",
+                      "monto": "Monto sugerido",
+                      "tipo_activo": "Categoría",
+                      "tna_estimada": "Rendimiento",
+                      "fundamento": "Por qué se elige."
+                    }}
+                  ],
+                  "estrategia_liquidez": "Plan para el corto plazo.",
+                  "evolucion_cartera": [
+                    {{
+                      "mes": "Mes 1",
+                      "monto_pesos": 1000000,
+                      "ingresos_netos_mes": 500000,
+                      "egresos_totales_mes": 200000,
+                      "inflacion_acum_estimada": "5%"
+                    }}
+                  ],
+                  "justificacion_general": "Resumen final."
+                }}
                 """
 
-                # Generación usando el modelo descubierto dinámicamente
                 response = model.generate_content(prompt)
-                
-                # Extracción robusta del JSON
                 raw_text = response.text
-                start = raw_text.find('{')
-                end = raw_text.rfind('}') + 1
-                data = json.loads(raw_text[start:end])
+                data = json.loads(raw_text[raw_text.find('{'):raw_text.rfind('}')+1])
 
-                st.success("✅ Estrategia Profesional Generada")
+                st.success("✅ Estrategia Generada")
                 st.balloons()
 
-                # --- 4. RENDERIZADO DE RESULTADOS ---
+                # --- 4. RENDERIZADO ---
                 ui_components.render_card("Resumen de Mercado", data['analisis_macro'])
 
-                col_horiz, col_liq = st.columns(2)
-                with col_horiz:
-                    ui_components.render_card(f"Horizonte para: {meta_nombre}", data['horizonte_meta'])
-                with col_liq:
-                    ui_components.render_card("Plan de Liquidez", data['estrategia_liquidez'])
+                c1, c2 = st.columns(2)
+                with c1: ui_components.render_card(f"Horizonte Meta", data['horizonte_meta'])
+                with c2: ui_components.render_card("Plan de Liquidez", data['estrategia_liquidez'])
 
                 st.subheader("📊 Cartera de Inversión Sugerida")
-
-                # Procesamiento de montos para gráficos (Regex robusto)
                 processed_cartera = []
                 for item in data['cartera_sugerida']:
-                    monto_numeric = 0
-                    monto_str = str(item.get('monto', '0'))
-                    match = re.search(r'(\d[\d.,]*)', monto_str)
-                    if match:
-                        num_str = match.group(1).replace('.', '').replace(',', '.')
-                        try: monto_numeric = float(num_str)
-                        except: pass
-                    processed_cartera.append({"inst": item['instrumento'], "monto_n": monto_numeric, "tipo": item['tipo_activo'], "fund": item['fundamento'], "tna": item['tna_estimada'], "monto_orig": monto_str})
+                    m_str = str(item.get('monto', '0'))
+                    match = re.search(r'(\d[\d.,]*)', m_str)
+                    m_num = float(match.group(1).replace('.', '').replace(',', '.')) if match else 0
+                    processed_cartera.append({"inst": item['instrumento'], "monto_n": m_num, "tipo": item['tipo_activo'], "fund": item['fundamento'], "tna": item['tna_estimada'], "monto_orig": m_str})
 
-                df_cartera = pd.DataFrame(processed_cartera)
-                if not df_cartera.empty:
-                    fig1 = px.pie(df_cartera[df_cartera['monto_n'] > 0], values='monto_n', names='tipo', title='Distribución Propuesta')
-                    st.plotly_chart(fig1, use_container_width=True)
+                df = pd.DataFrame(processed_cartera)
+                if not df.empty:
+                    st.plotly_chart(px.pie(df[df['monto_n'] > 0], values='monto_n', names='tipo', title='Distribución'), use_container_width=True)
 
                 for item in processed_cartera:
-                    with st.expander(f"**{item['inst']}** - Monto: {item['monto_orig']}"):
+                    with st.expander(f"**{item['inst']}** - {item['monto_orig']}"):
                         st.info(item['fund'])
 
                 st.subheader("📈 Proyección de Capital")
                 df_evol = pd.DataFrame(data['evolucion_cartera'])
-                fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4)))
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(px.line(df_evol, x='mes', y='monto_pesos', title='Evolución Proyectada'), use_container_width=True)
 
-                st.markdown("---")
                 ui_components.render_card("💡 Justificación General", data['justificacion_general'])
 
             except Exception as e:
-                st.error(f"Error técnico al generar la estrategia: {e}")
-    else:
-        if not model:
-            st.error("❌ El motor de IA no está disponible.")
-        if not market_context:
-            st.error("❌ No se pudieron obtener los datos de mercado.")
+                st.error(f"Error al procesar la respuesta: {e}")
+                if 'raw_text' in locals(): st.code(raw_text)
 
 st.info("⚠️ Esta información es educativa y no constituye asesoramiento financiero.")
