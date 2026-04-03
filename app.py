@@ -7,7 +7,7 @@ import json
 import datetime
 import re
 
-# Importamos nuestros módulos modularizados de UI y Datos
+# Importamos módulos modularizados
 import ui_components
 import data_orchestrator
 
@@ -16,39 +16,32 @@ st.set_page_config(page_title="+ Copilot | Inversiones", page_icon="🏦", layou
 ui_components.apply_custom_styles()
 ui_components.render_header()
 
-# CONFIGURACIÓN DE IA ROBUSTA (A prueba de errores 404)
+# AUTO-MODEL DISCOVERY (Solución indestructible para errores 404)
 @st.cache_resource
-def setup_genai():
-    """Configura la API de Google de forma persistente."""
+def get_best_model():
+    """Busca dinámicamente el modelo Flash disponible para esta API Key."""
     try:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-        return True
+        # Buscamos modelos que soporten generación y sean de la familia 'flash'
+        available_models = [m.name for m in genai.list_models() 
+                           if 'generateContent' in m.supported_generation_methods 
+                           and 'flash' in m.name.lower()]
+        
+        if available_models:
+            # Nos quedamos con el primero que sea 1.5 o superior si es posible
+            flash_15 = [m for m in available_models if '1.5' in m]
+            best_model_name = flash_15[0] if flash_15 else available_models[0]
+            st.toast(f"🤖 IA Conectada vía: {best_model_name}")
+            return genai.GenerativeModel(best_model_name)
+        else:
+            st.error("❌ No se encontraron modelos Gemini Flash disponibles para esta cuenta.")
+            return None
     except Exception as e:
-        st.error(f"Error al configurar Google AI: {e}")
-        return False
+        st.error(f"Error al conectar con la IA de Google: {e}")
+        return None
 
-# Inicializamos la configuración de la API
-ai_ready = setup_genai()
-
-def call_gemini(prompt_text):
-    """
-    Función de llamada a Gemini con lógica de reintento para evitar errores 404.
-    Prueba primero con el modelo flash estándar y luego con el alias 'latest'.
-    """
-    model_names = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'models/gemini-1.5-flash']
-    
-    for model_name in model_names:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt_text)
-            return response.text
-        except Exception as e:
-            if "404" in str(e) or "not found" in str(e).lower():
-                continue # Probamos con el siguiente modelo de la lista
-            else:
-                raise e # Si es otro tipo de error (ej. Cuota 429), lo lanzamos
-    
-    raise Exception("No se encontró ningún modelo Gemini compatible (Error 404 persistente).")
+# Inicializamos el mejor modelo disponible
+model = get_best_model()
 
 # --- 2. CUESTIONARIO FINANCIERO ---
 st.subheader("📋 Perfil Financiero Detallado")
@@ -101,34 +94,34 @@ with col_pref:
 # --- 3. PROCESAMIENTO Y ESTRATEGIA ---
 if st.button("GENERAR ESTRATEGIA +"):
     
-    # 1. Obtenemos todo el contexto de mercado mediante el orquestador (Modular)
+    # 1. Obtenemos todo el contexto de mercado mediante el orquestador
     market_context = data_orchestrator.get_all_market_context()
 
-    if market_context and ai_ready:
+    if market_context and model:
         # Consolidamos datos del usuario
         user_data = {
             "saldo": saldo_hoy, "sueldos": sueldos, "gastos": gastos, 
             "pfs_actuales": pfs, "meta": {"n": meta_nombre, "m": meta_monto}, "mep": mep
         }
 
-        with st.spinner("🤖 El Copilot está analizando el mercado y tu situación..."):
+        with st.spinner("🤖 Analizando con el mejor modelo de IA disponible..."):
             try:
                 # El Prompt Maestro integrado
                 prompt = f"""
                 Actúa como un Asesor Financiero Senior del BNA.
                 Cliente: {json.dumps(user_data)}
                 Mercado: {json.dumps(market_context)}
-                
-                Tu respuesta DEBE SER UN OBJETO JSON VÁLIDO con: analisis_macro, horizonte_meta, cartera_sugerida (instrumento, monto, tipo_activo, tna_estimada, fundamento), estrategia_liquidez, evolucion_cartera (mes, monto_pesos, ingresos_netos_mes, egresos_totales_mes, inflacion_acum_estimada), justificacion_general.
+                Tu respuesta DEBE SER UN OBJETO JSON VÁLIDO.
                 """
 
-                # Llamada robusta a Gemini
-                raw_response = call_gemini(prompt)
+                # Generación usando el modelo descubierto dinámicamente
+                response = model.generate_content(prompt)
                 
-                # Extracción y parsing del JSON
-                json_start = raw_response.find('{')
-                json_end = raw_response.rfind('}') + 1
-                data = json.loads(raw_response[json_start:json_end])
+                # Extracción robusta del JSON
+                raw_text = response.text
+                start = raw_text.find('{')
+                end = raw_text.rfind('}') + 1
+                data = json.loads(raw_text[start:end])
 
                 st.success("✅ Estrategia Profesional Generada")
                 st.balloons()
@@ -158,16 +151,14 @@ if st.button("GENERAR ESTRATEGIA +"):
 
                 df_cartera = pd.DataFrame(processed_cartera)
                 if not df_cartera.empty:
-                    fig1 = px.pie(df_cartera[df_cartera['monto_n'] > 0], values='monto_n', names='tipo', 
-                                 title='Distribución Sugerida', color_discrete_sequence=['#005691', '#0074c7', '#4da3ff', '#a3d1ff'])
+                    fig1 = px.pie(df_cartera[df_cartera['monto_n'] > 0], values='monto_n', names='tipo', title='Distribución Propuesta')
                     st.plotly_chart(fig1, use_container_width=True)
 
                 for item in processed_cartera:
                     with st.expander(f"**{item['inst']}** - Monto: {item['monto_orig']}"):
-                        st.markdown(f"**TNA:** {item['tna']} | **Tipo:** {item['tipo']}")
                         st.info(item['fund'])
 
-                st.subheader("📈 Proyección de Flujo (6 Meses)")
+                st.subheader("📈 Proyección de Capital")
                 df_evol = pd.DataFrame(data['evolucion_cartera'])
                 fig2 = go.Figure()
                 fig2.add_trace(go.Scatter(x=df_evol['mes'], y=df_evol['monto_pesos'], name='Capital Proyectado', line=dict(color='#005691', width=4)))
